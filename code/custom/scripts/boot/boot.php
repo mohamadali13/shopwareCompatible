@@ -1,8 +1,11 @@
 <?php
 
 use Scripts\Boot\ScriptKernel;
-use Shopware\Core\HttpKernel;
+use Shopware\Core\Framework\Adapter\Database\MySQLFactory;
+use Shopware\Core\Framework\Adapter\Kernel\KernelFactory;
+use Shopware\Core\Framework\Plugin\KernelPluginLoader\DbalKernelPluginLoader;
 use Symfony\Component\Dotenv\Dotenv;
+use Symfony\Component\HttpKernel\KernelInterface;
 
 $classLoader = require __DIR__ . '/../../../vendor/autoload.php';
 
@@ -14,14 +17,22 @@ if (class_exists(Dotenv::class) && (file_exists($projectRoot . '/.env.local.php'
     (new Dotenv())->usePutenv()->bootEnv($projectRoot . '/.env');
 }
 
-$returnKernel = $returnKernel ?? false;
-
 $env = $env ?? 'dev';
 
-$kernel = new class($env, $env !== 'prod', $classLoader) extends HttpKernel {
-    protected static string $kernelClass = ScriptKernel::class;
-};
+/** @var KernelInterface $kernel */
+KernelFactory::$kernelClass = ScriptKernel::class;
 
-$kernel->getKernel()->boot();
+$kernel = KernelFactory::create(
+    environment: $env,
+    debug: true,
+    classLoader: $classLoader,
+    pluginLoader: new DbalKernelPluginLoader(
+        classLoader: $classLoader,
+        pluginDir: $projectRoot . '/custom/plugins',
+        connection: MySQLFactory::create([])
+    )
+);
+
+$kernel->boot();
 
 return $kernel;

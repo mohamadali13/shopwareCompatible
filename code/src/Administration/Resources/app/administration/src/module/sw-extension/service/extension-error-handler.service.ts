@@ -8,7 +8,7 @@ type MappedError = {
 }
 
 class StoreError {
-    // eslint-disable-next-line no-useless-constructor
+    // eslint-disable-next-line no-useless-constructor, no-empty-function
     constructor(public readonly title: string, public readonly message: string) {}
 }
 
@@ -91,7 +91,7 @@ function mapErrors(errors: StoreApiException[]) {
 }
 
 /**
- * @package services-settings
+ * @package checkout
  * @private
  */
 export default {
@@ -99,7 +99,7 @@ export default {
 };
 
 /**
- * @package services-settings
+ * @package checkout
  * @private
  */
 export type {

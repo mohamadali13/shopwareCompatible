@@ -8,6 +8,7 @@ use Shopware\Core\Framework\Api\Acl\Role\AclRoleDefinition;
 use Shopware\Core\Framework\Api\ApiException;
 use Shopware\Core\Framework\Api\Response\ResponseFactoryInterface;
 use Shopware\Core\Framework\Context;
+use Shopware\Core\Framework\DataAbstractionLayer\DataAbstractionLayerException;
 use Shopware\Core\Framework\DataAbstractionLayer\DefinitionInstanceRegistry;
 use Shopware\Core\Framework\DataAbstractionLayer\Entity;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityDefinition;
@@ -41,7 +42,7 @@ use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Serializer\Encoder\DecoderInterface;
 use Symfony\Component\Serializer\Exception\InvalidArgumentException;
 use Symfony\Component\Serializer\Exception\UnexpectedValueException;
@@ -69,7 +70,7 @@ class ApiController extends AbstractController
     ) {
     }
 
-    #[Route(path: '/api/_action/clone/{entity}/{id}', name: 'api.clone', methods: ['POST'], requirements: ['version' => '\d+', 'entity' => '[a-zA-Z-]+', 'id' => '[0-9a-f]{32}'])]
+    #[Route(path: '/api/_action/clone/{entity}/{id}', name: 'api.clone', methods: ['POST'], requirements: ['version' => '\d+', 'entity' => '[0-9a-zA-Z-]+', 'id' => '[0-9a-f]{32}'])]
     public function clone(Context $context, string $entity, string $id, Request $request): JsonResponse
     {
         $behavior = new CloneBehavior(
@@ -103,7 +104,7 @@ class ApiController extends AbstractController
         return new JsonResponse(['id' => $newId]);
     }
 
-    #[Route(path: '/api/_action/version/{entity}/{id}', name: 'api.createVersion', methods: ['POST'], requirements: ['version' => '\d+', 'entity' => '[a-zA-Z-]+', 'id' => '[0-9a-f]{32}'])]
+    #[Route(path: '/api/_action/version/{entity}/{id}', name: 'api.createVersion', methods: ['POST'], requirements: ['version' => '\d+', 'entity' => '[0-9a-zA-Z-]+', 'id' => '[0-9a-f]{32}'])]
     public function createVersion(Request $request, Context $context, string $entity, string $id): Response
     {
         $entity = $this->urlToSnakeCase($entity);
@@ -135,7 +136,7 @@ class ApiController extends AbstractController
         ]);
     }
 
-    #[Route(path: '/api/_action/version/merge/{entity}/{versionId}', name: 'api.mergeVersion', methods: ['POST'], requirements: ['version' => '\d+', 'entity' => '[a-zA-Z-]+', 'versionId' => '[0-9a-f]{32}'])]
+    #[Route(path: '/api/_action/version/merge/{entity}/{versionId}', name: 'api.mergeVersion', methods: ['POST'], requirements: ['version' => '\d+', 'entity' => '[0-9a-zA-Z-]+', 'versionId' => '[0-9a-f]{32}'])]
     public function mergeVersion(Context $context, string $entity, string $versionId): JsonResponse
     {
         $entity = $this->urlToSnakeCase($entity);
@@ -155,7 +156,7 @@ class ApiController extends AbstractController
         return new JsonResponse(null, Response::HTTP_NO_CONTENT);
     }
 
-    #[Route(path: '/api/_action/version/{versionId}/{entity}/{entityId}', name: 'api.deleteVersion', methods: ['POST'], requirements: ['version' => '\d+', 'entity' => '[a-zA-Z-]+', 'id' => '[0-9a-f]{32}'])]
+    #[Route(path: '/api/_action/version/{versionId}/{entity}/{entityId}', name: 'api.deleteVersion', methods: ['POST'], requirements: ['version' => '\d+', 'entity' => '[0-9a-zA-Z-]+', 'id' => '[0-9a-f]{32}'])]
     public function deleteVersion(Context $context, string $entity, string $entityId, string $versionId): JsonResponse
     {
         if (!Uuid::isValid($versionId)) {
@@ -276,12 +277,28 @@ class ApiController extends AbstractController
 
     public function create(Request $request, Context $context, ResponseFactoryInterface $responseFactory, string $entityName, string $path): Response
     {
-        return $this->write($request, $context, $responseFactory, $entityName, $path, self::WRITE_CREATE);
+        try {
+            return $this->write($request, $context, $responseFactory, $entityName, $path, self::WRITE_CREATE);
+        } catch (DataAbstractionLayerException $exception) {
+            if ($exception->getErrorCode() === DataAbstractionLayerException::INVALID_WRITE_INPUT) {
+                throw ApiException::badRequest('Invalid payload. Should be associative array');
+            }
+
+            throw $exception;
+        }
     }
 
     public function update(Request $request, Context $context, ResponseFactoryInterface $responseFactory, string $entityName, string $path): Response
     {
-        return $this->write($request, $context, $responseFactory, $entityName, $path, self::WRITE_UPDATE);
+        try {
+            return $this->write($request, $context, $responseFactory, $entityName, $path, self::WRITE_UPDATE);
+        } catch (DataAbstractionLayerException $exception) {
+            if ($exception->getErrorCode() === DataAbstractionLayerException::INVALID_WRITE_INPUT) {
+                throw ApiException::badRequest('Invalid payload. Should be associative array');
+            }
+
+            throw $exception;
+        }
     }
 
     public function delete(Request $request, Context $context, ResponseFactoryInterface $responseFactory, string $entityName, string $path): Response
@@ -862,14 +879,20 @@ class ApiController extends AbstractController
                 'field' => null,
             ],
         ];
-
         foreach ($parts as $part) {
             /** @var AssociationField|null $field */
             $field = $root->getFields()->get($part['entity']);
+
             if (!$field) {
                 $path = implode('.', array_column($entities, 'entity')) . '.' . $part['entity'];
 
                 throw ApiException::notExistingRelation($path);
+            }
+
+            if (!($field instanceof AssociationField)) {
+                $message = sprintf('Field "%s" is not a valid association field.', $part['entity']);
+
+                throw ApiException::pathIsNoAssociationField($message);
             }
 
             if ($field instanceof ManyToManyAssociationField) {

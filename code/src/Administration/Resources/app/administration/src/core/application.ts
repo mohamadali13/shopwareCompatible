@@ -1,5 +1,6 @@
 import type Bottle from 'bottlejs';
-import Vue from 'vue';
+import type { App } from 'vue';
+import { reactive } from 'vue';
 import type { ContextState } from '../app/state/context.store';
 import type VueAdapter from '../app/adapter/view/vue.adapter';
 /**
@@ -25,7 +26,7 @@ interface bundlesPluginResponse {
 }
 
 /**
- * @deprecated tag:v6.6.0 - Will be private
+ * @private
  *
  * The application bootstrapper bootstraps the application and registers the necessary
  * and optional parts of the application in a shared DI container which provides you
@@ -54,6 +55,11 @@ class ApplicationBootstrapper {
         this.$container.service('service', noop);
         this.$container.service('init', noop);
         this.$container.service('factory', noop);
+
+        if (window._features_.ADMIN_VITE) {
+            this.$container.service('init-post', noop);
+            this.$container.service('init-pre', noop);
+        }
     }
 
     /**
@@ -144,6 +150,15 @@ class ApplicationBootstrapper {
      */
     addInitializer<I extends keyof InitContainer>(name: I, initializer: () => InitContainer[I]): ApplicationBootstrapper {
         this.$container.factory(`init.${name}`, initializer.bind(this));
+        return this;
+    }
+
+    /**
+     * Adds an initializer to the Vite application.
+     */
+    // eslint-disable-next-line max-len
+    addInitializerVite<I extends keyof InitContainer>(name: I, initializer: () => InitContainer[I], suffix: string = ''): ApplicationBootstrapper {
+        this.$container.factory(`init${suffix}.${name}`, initializer.bind(this));
         return this;
     }
 
@@ -310,8 +325,15 @@ class ApplicationBootstrapper {
      * Get the global state
      */
     initState(): ApplicationBootstrapper {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        const initaliziation = this.getContainer('init').state;
+        let initaliziation;
+
+        if (window._features_.ADMIN_VITE) {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            initaliziation = this.getContainer('init-pre').state;
+        } else {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            initaliziation = this.getContainer('init').state;
+        }
 
         if (initaliziation) {
             return this;
@@ -323,7 +345,7 @@ class ApplicationBootstrapper {
     /**
      * Returns the root of the application e.g. a new Vue instance
      */
-    getApplicationRoot(): Vue | false {
+    getApplicationRoot(): App<Element> | false {
         if (!this.view?.root) {
             return false;
         }
@@ -350,6 +372,10 @@ class ApplicationBootstrapper {
             // eslint-disable-next-line @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-member-access
             loginService.logout(false, false);
             return this.bootLogin();
+        }
+
+        if (window._features_.ADMIN_VITE) {
+            return this.bootFullApplicationVite();
         }
 
         return this.bootFullApplication();
@@ -383,7 +409,7 @@ class ApplicationBootstrapper {
     }
 
     /**
-     * Boot the whole application.
+     * Boot the whole webpack application.
      */
     bootFullApplication(): Promise<void | ApplicationBootstrapper> {
         const initContainer = this.getContainer('init');
@@ -408,6 +434,30 @@ class ApplicationBootstrapper {
             })
             .then(() => this.createApplicationRoot())
             .catch((error) => this.createApplicationRootError(error));
+    }
+
+    /**
+     * Boot the whole vite application.
+     */
+    bootFullApplicationVite(): Promise<void | ApplicationBootstrapper> {
+        const initPreContainer = this.getContainer('init-pre');
+        const initContainer = this.getContainer('init');
+        const initPostContainer = this.getContainer('init-post');
+
+        return this.initializeInitializersVite(initPreContainer, '-pre')
+            .then(() => this.initializeInitializersVite(initContainer))
+            .then(() => this.initializeInitializersVite(initPostContainer, '-post'))
+            // .then(() => this.loadPlugins())
+            .then(() => Promise.all(Shopware.Plugin.getBootPromises()))
+            .then(() => {
+                if (!this.view) {
+                    return Promise.reject();
+                }
+
+                return this.view.initDependencies();
+            })
+            .then(() => this.createApplicationRoot());
+        // .catch((error) => this.createApplicationRootError(error));
     }
 
     /**
@@ -440,8 +490,14 @@ class ApplicationBootstrapper {
 
         // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-member-access
         const firstRunWizard = Shopware.Context.app.firstRunWizard;
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-member-access
-        if (firstRunWizard && !router?.history?.current?.name?.startsWith('sw.first.run.wizard.')) {
+
+        const loginService = this.getContainer('service').loginService;
+        if (
+            firstRunWizard &&
+            loginService.isLoggedIn() &&
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-member-access
+            !router?.currentRoute?.value?.name?.startsWith('sw.first.run.wizard')
+        ) {
             // eslint-disable-next-line @typescript-eslint/no-unsafe-call,@typescript-eslint/no-unsafe-member-access
             router.push({
                 name: 'sw.first.run.wizard.index',
@@ -510,6 +566,22 @@ class ApplicationBootstrapper {
     }
 
     /**
+     * Initialize the initializers for Vite.
+     */
+    // eslint-disable-next-line max-len
+    private initializeInitializersVite(container: InitContainer|InitPreContainer|InitPostContainer, suffix: ''|'-pre'|'-post' = ''): Promise<unknown[]> {
+        // This will initialize the pre-initializers, initializers or post-initializers based on the suffix
+        const services = container.$list().map((serviceName) => {
+            return `init${suffix}.${serviceName}`;
+        });
+
+        this.$container.digest(services);
+
+        const asyncInitializers = this.getAsyncInitializersVite(container, suffix);
+        return Promise.all(asyncInitializers);
+    }
+
+    /**
      * Initialize the initializers right away cause these are the mandatory services for the application
      * to boot successfully.
      */
@@ -533,7 +605,13 @@ class ApplicationBootstrapper {
 
         this.$container.digest(loginInitializer.map(key => `init.${key}`));
 
-        const asyncInitializers = this.getAsyncInitializers(loginInitializer);
+        let asyncInitializers = [];
+        if (window._features_.ADMIN_VITE) {
+            asyncInitializers = this.getAsyncInitializersVite(loginInitializer);
+        } else {
+            asyncInitializers = this.getAsyncInitializers(loginInitializer);
+        }
+
         return Promise.all(asyncInitializers);
     }
 
@@ -542,6 +620,34 @@ class ApplicationBootstrapper {
         const asyncInitializers: unknown[] = [];
 
         Object.keys(initializer).forEach((serviceKey) => {
+            // @ts-expect-error
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            const service = initContainer[serviceKey];
+
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            if (service?.constructor?.name === 'Promise') {
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+                asyncInitializers.push(service);
+            }
+        });
+
+        return asyncInitializers;
+    }
+
+    // eslint-disable-next-line max-len
+    getAsyncInitializersVite(initializer: InitContainer|InitPostContainer|InitPreContainer | string[], suffix: ''|'-pre'|'-post' = ''): unknown[] {
+        const initContainer = this.getContainer(`init${suffix}`);
+        const asyncInitializers: unknown[] = [];
+
+        let initializerStrings = initializer;
+
+        if (!(initializer instanceof Array)) {
+            initializerStrings = Object.keys(initializer);
+        }
+
+        // @ts-expect-error
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+        initializerStrings.forEach((serviceKey: string) => {
             // @ts-expect-error
             // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             const service = initContainer[serviceKey];
@@ -577,9 +683,13 @@ class ApplicationBootstrapper {
             await this.injectPlugin(plugins['swag-commercial']);
         }
 
+        if (plugins.SwagCommercial) {
+            await this.injectPlugin(plugins.SwagCommercial);
+        }
+
         const injectAllPlugins = Object.entries(plugins).filter(([pluginName]) => {
             // Filter the swag-commercial plugin because it was loaded beforehand
-            return pluginName !== 'swag-commercial';
+            return !['swag-commercial', 'SwagCommercial'].includes(pluginName);
         }).map(([, plugin]) => this.injectPlugin(plugin));
 
         // inject iFrames of plugins
@@ -743,17 +853,26 @@ class ApplicationBootstrapper {
             permissions = bundles[bundleName].permissions;
         }
 
-        const extension = {
+        const extension: {
+            active?: boolean,
+            integrationId?: string,
+            name: string,
+            baseUrl: string,
+            version?: string,
+            type?: 'app'|'plugin',
+            permissions?: Record<string, unknown>,
+        } = {
             active,
             integrationId,
             name: bundleName,
             baseUrl: iframeSrc,
             version: bundleVersion,
             type: bundleType,
+            permissions: undefined,
         };
 
         // To keep permissions reactive no matter if empty or not
-        Vue.set(extension, 'permissions', permissions ?? Vue.observable({}));
+        extension.permissions = permissions ?? reactive({});
 
         Shopware.State.commit('extensions/addExtension', extension);
     }

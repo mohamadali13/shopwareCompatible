@@ -2,7 +2,7 @@
     <div class="form-group {{ additionalClass }}">
         {% block cms_element_form_input_label %}
             <label class="form-label" for="form-{{ fieldName }}">
-                {{- label|trans -}}{% if required %} {{- "general.required"|trans -}}{% endif %}
+                {{- label|trans -}}{% if required %} {{- 'general.required'|trans -}}{% endif %}
             </label>
         {% endblock %}
 
@@ -10,6 +10,7 @@
             <input name="{{ fieldName }}"
                    type="{{ type ?? 'text'}}"
                    id="form-{{ fieldName }}"
+                   {% if autocomplete %}autocomplete="{{ autocomplete }}"{% endif %}
                    value="{{ data.get( fieldName ) }}"
                    placeholder="{{ placeholder|trans }}"
                    {% if required %}required="required"{% endif %}

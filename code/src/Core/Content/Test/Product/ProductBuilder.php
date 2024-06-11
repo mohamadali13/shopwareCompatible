@@ -151,7 +151,7 @@ class ProductBuilder
      */
     protected array $tags = [];
 
-    protected null|string $createdAt;
+    protected ?string $createdAt;
 
     /**
      * @var array<array{salesChannelId: string, languageId: string, routeName: TestProductSeoUrlRoute::ROUTE_NAME, pathInfo: string, seoPathInfo: string}>
@@ -168,6 +168,11 @@ class ProductBuilder
      */
     private array $dependencies = [];
 
+    /**
+     * @var array<array<mixed>>
+     */
+    protected array $variantListingConfig = [];
+
     public function __construct(
         IdsCollection $ids,
         protected string $productNumber,
@@ -178,6 +183,13 @@ class ProductBuilder
         $this->id = $this->ids->create($productNumber);
         $this->name = $productNumber;
         $this->tax($taxKey);
+    }
+
+    public function number(string $number): self
+    {
+        $this->productNumber = $number;
+
+        return $this;
     }
 
     /**
@@ -227,6 +239,16 @@ class ProductBuilder
     public function variant(array $data): self
     {
         $this->children[] = $data;
+
+        return $this;
+    }
+
+    /**
+     * @param array<mixed> $data
+     */
+    public function variantListingConfig(array $data): self
+    {
+        $this->variantListingConfig = $data;
 
         return $this;
     }

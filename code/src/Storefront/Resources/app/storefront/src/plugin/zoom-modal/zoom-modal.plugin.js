@@ -1,5 +1,4 @@
 import Plugin from 'src/plugin-system/plugin.class';
-import PluginManager from 'src/plugin-system/plugin.manager';
 import DeviceDetection from 'src/helper/device-detection.helper';
 import Iterator from 'src/helper/iterator.helper';
 import DomAccess from 'src/helper/dom-access.helper';
@@ -247,19 +246,19 @@ export default class ZoomModalPlugin extends Plugin {
      * @private
      */
     _showModal(modal) {
-        const bootstrapModal = new bootstrap.Modal(modal, {
-            keyboard: false,
-        });
+        const bootstrapModal = new bootstrap.Modal(modal);
 
-        const listener = () => {
-            this._initSlider(modal);
-            this._registerImageZoom();
+        if (!this._showModalListener) {
+            this._showModalListener = () => {
+                this._initSlider(modal);
+                this._registerImageZoom();
 
-            this.$emitter.publish('modalShow', { modal });
-        };
+                this.$emitter.publish('modalShow', { modal });
+            };
+        }
 
-        modal.removeEventListener('shown.bs.modal', listener);
-        modal.addEventListener('shown.bs.modal', listener);
+        modal.removeEventListener('shown.bs.modal', this._showModalListener);
+        modal.addEventListener('shown.bs.modal', this._showModalListener);
 
         bootstrapModal.show();
     }
@@ -283,7 +282,7 @@ export default class ZoomModalPlugin extends Plugin {
             return;
         }
 
-        PluginManager.initializePlugin('GallerySlider', slider, {
+        window.PluginManager.initializePlugin('GallerySlider', slider, {
             slider: {
                 startIndex: parentSliderIndex,
                 touch: false,
@@ -304,11 +303,10 @@ export default class ZoomModalPlugin extends Plugin {
                     },
                 },
             },
+        }).then(() => {
+            this.gallerySliderPlugin = window.PluginManager.getPluginInstanceFromElement(slider, 'GallerySlider');
+            this.$emitter.publish('initSlider');
         });
-
-        this.gallerySliderPlugin = PluginManager.getPluginInstanceFromElement(slider, 'GallerySlider');
-
-        this.$emitter.publish('initSlider');
     }
 
     /**
@@ -322,16 +320,16 @@ export default class ZoomModalPlugin extends Plugin {
         }
 
         if (this.gallerySliderPlugin) {
-            PluginManager.register('ImageZoom', ImageZoomPlugin, this.options.activeSlideSelector + ' ' + this.options.imageZoomInitSelector);
+            window.PluginManager.register('ImageZoom', ImageZoomPlugin, this.options.activeSlideSelector + ' ' + this.options.imageZoomInitSelector);
 
-            PluginManager.initializePlugin('ImageZoom', this.options.activeSlideSelector + ' ' + this.options.imageZoomInitSelector);
+            window.PluginManager.initializePlugin('ImageZoom', this.options.activeSlideSelector + ' ' + this.options.imageZoomInitSelector);
 
             this.gallerySliderPlugin._slider.events.off('indexChanged', this._updateImageZoom.bind(this));
             this.gallerySliderPlugin._slider.events.on('indexChanged',this._updateImageZoom.bind(this));
         } else {
-            PluginManager.register('ImageZoom', ImageZoomPlugin, this.options.imageZoomInitSelector);
+            window.PluginManager.register('ImageZoom', ImageZoomPlugin, this.options.imageZoomInitSelector);
 
-            PluginManager.initializePlugin('ImageZoom', this.options.imageZoomInitSelector, {
+            window.PluginManager.initializePlugin('ImageZoom', this.options.imageZoomInitSelector, {
                 activeClassSelector: false,
             });
         }
@@ -351,9 +349,9 @@ export default class ZoomModalPlugin extends Plugin {
         const activeImageZoomElement = activeSlideElement.querySelector(this.options.imageZoomInitSelector);
         if (!activeImageZoomElement) return;
 
-        const imageZoomPlugin = PluginManager.getPluginInstanceFromElement(activeImageZoomElement, 'ImageZoom');
+        const imageZoomPlugin = window.PluginManager.getPluginInstanceFromElement(activeImageZoomElement, 'ImageZoom');
         if (!imageZoomPlugin) {
-            PluginManager.initializePlugin('ImageZoom', this.options.activeSlideSelector + ' ' + this.options.imageZoomInitSelector);
+            window.PluginManager.initializePlugin('ImageZoom', this.options.activeSlideSelector + ' ' + this.options.imageZoomInitSelector);
         } else {
             imageZoomPlugin.update();
         }
@@ -371,7 +369,7 @@ export default class ZoomModalPlugin extends Plugin {
         this._parentSliderElement = this.el.closest(this.options.parentGallerySliderSelector);
 
         if (this._parentSliderElement) {
-            this._parentSliderPlugin = PluginManager.getPluginInstanceFromElement(this._parentSliderElement, 'GallerySlider');
+            this._parentSliderPlugin = window.PluginManager.getPluginInstanceFromElement(this._parentSliderElement, 'GallerySlider');
 
             if (this._parentSliderPlugin) {
                 sliderIndex = this._parentSliderPlugin.getCurrentSliderIndex();

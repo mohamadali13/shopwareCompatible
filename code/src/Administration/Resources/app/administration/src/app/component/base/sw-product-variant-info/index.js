@@ -46,7 +46,6 @@ Component.register('sw-product-variant-info', {
         showTooltip: {
             type: Boolean,
             required: false,
-            // TODO: Boolean props should only be opt in and therefore default to false
             // eslint-disable-next-line vue/no-boolean-default
             default: true,
         },
@@ -73,10 +72,7 @@ Component.register('sw-product-variant-info', {
 
     computed: {
         productName() {
-            if (this.feature.isActive('VUE3')) {
-                return this.$slots?.default?.()?.[0]?.children || '';
-            }
-            return this.$slots?.default?.[0]?.text || '';
+            return this.$slots?.default?.()?.[0]?.children || '';
         },
     },
 
@@ -96,10 +92,7 @@ Component.register('sw-product-variant-info', {
         },
 
         getFirstSlot() {
-            if (this.feature.isActive('VUE3')) {
-                return this.$slots?.default?.()?.[0]?.children || '';
-            }
-            return this.$slots?.default?.[0]?.text || '';
+            return this.$slots?.default?.()?.[0]?.children || '';
         },
 
         setHelpText() {

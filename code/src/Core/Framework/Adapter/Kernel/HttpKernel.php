@@ -22,10 +22,7 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
 #[Package('core')]
 class HttpKernel extends SymfonyHttpKernel
 {
-    /**
-     * @var EventDispatcherInterface
-     */
-    protected $dispatcher;
+    protected EventDispatcherInterface $dispatcher;
 
     public function __construct(
         EventDispatcherInterface $dispatcher,
@@ -40,15 +37,13 @@ class HttpKernel extends SymfonyHttpKernel
 
     public function handle(Request $request, int $type = HttpKernelInterface::MAIN_REQUEST, bool $catch = true): Response
     {
-        if (!KernelFactory::$active) {
-            return parent::handle($request, $type, $catch);
-        }
-
         if ($request->attributes->get('exception') !== null) {
             return parent::handle($request, $type, $catch);
         }
 
-        $request = $this->requestTransformer->transform($request);
+        if (!$request->attributes->has('sw-skip-transformer')) {
+            $request = $this->requestTransformer->transform($request);
+        }
 
         $redirect = $this->canonicalRedirectService->getRedirect($request);
 

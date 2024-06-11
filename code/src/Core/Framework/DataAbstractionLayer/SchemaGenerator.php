@@ -10,7 +10,9 @@ use Shopware\Core\Framework\DataAbstractionLayer\Field\CalculatedPriceField;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\CartPriceField;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\ChildCountField;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\ChildrenAssociationField;
+use Shopware\Core\Framework\DataAbstractionLayer\Field\CronIntervalField;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\DateField;
+use Shopware\Core\Framework\DataAbstractionLayer\Field\DateIntervalField;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\DateTimeField;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\Field;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\FkField;
@@ -33,6 +35,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\Field\PriceDefinitionField;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\PriceField;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\ReferenceVersionField;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\RemoteAddressField;
+use Shopware\Core\Framework\DataAbstractionLayer\Field\SerializedField;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\StorageAware;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\StringField;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\TranslatedField;
@@ -40,10 +43,13 @@ use Shopware\Core\Framework\DataAbstractionLayer\Field\TreeLevelField;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\TreePathField;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\UpdatedAtField;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\VersionField;
+use Shopware\Core\Framework\Feature;
 use Shopware\Core\Framework\Log\Package;
 
 /**
  * @internal
+ *
+ * @deprecated tag:v6.7.0 - Will be removed, use MigrationQueryGenerator instead.
  */
 #[Package('core')]
 class SchemaGenerator
@@ -64,6 +70,11 @@ EOL;
      */
     public function generate(EntityDefinition $definition)
     {
+        Feature::triggerDeprecationOrThrow(
+            'v6.7.0.0',
+            Feature::deprecatedMethodMessage(self::class, __METHOD__, 'generate')
+        );
+
         $table = $definition->getEntityName();
 
         $columns = [];
@@ -138,6 +149,7 @@ EOL;
             case $field instanceof PriceDefinitionField:
             case $field instanceof PriceField:
             case $field instanceof ListField:
+            case $field instanceof SerializedField:
             case $field instanceof JsonField:
                 $type = 'JSON';
 
@@ -160,6 +172,8 @@ EOL;
 
                 break;
 
+            case $field instanceof CronIntervalField:
+            case $field instanceof DateIntervalField:
             case $field instanceof RemoteAddressField:
                 $type = 'VARCHAR(255)';
 

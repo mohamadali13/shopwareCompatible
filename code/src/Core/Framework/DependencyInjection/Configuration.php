@@ -2,6 +2,7 @@
 
 namespace Shopware\Core\Framework\DependencyInjection;
 
+use Shopware\Core\Content\Media\File\DownloadResponseGenerator;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Util\MemorySizeCalculator;
 use Symfony\Component\Config\Definition\Builder\ArrayNodeDefinition;
@@ -43,6 +44,8 @@ class Configuration implements ConfigurationInterface
                 ->append($this->createDompdfSection())
                 ->append($this->createStockSection())
                 ->append($this->createUsageDataSection())
+                ->append($this->createFeatureToggleNode())
+                ->append($this->createStagingNode())
             ->end();
 
         return $treeBuilder;
@@ -112,7 +115,7 @@ class Configuration implements ConfigurationInterface
                 ->end()
                 ->enumNode('private_local_download_strategy')
                     ->defaultValue('php')
-                    ->values(['php', 'x-sendfile', 'x-accel'])
+                    ->values(['php', DownloadResponseGenerator::X_SENDFILE_DOWNLOAD_STRATEGY, DownloadResponseGenerator::X_ACCEL_DOWNLOAD_STRATEGY])
                 ->end()
             ->end();
 
@@ -126,6 +129,13 @@ class Configuration implements ConfigurationInterface
             ->children()
                 ->scalarNode('url')->end()
                 ->scalarNode('strategy')->end()
+                ->arrayNode('fastly')
+                    ->children()
+                        ->scalarNode('api_key')->end()
+                        ->scalarNode('soft_purge')->end()
+                        ->integerNode('max_parallel_invalidations')->end()
+                    ->end()
+                ->end()
             ->end();
 
         return $rootNode;
@@ -167,9 +177,19 @@ class Configuration implements ConfigurationInterface
             ->scalarNode('refresh_token_ttl')->defaultValue('P1W')->end()
             ->arrayNode('jwt_key')
                 ->children()
-                    ->scalarNode('private_key_path')->end()
-                    ->scalarNode('private_key_passphrase')->defaultValue('shopware')->end()
-                    ->scalarNode('public_key_path')->end()
+                    ->booleanNode('use_app_secret')->defaultFalse()->end()
+                    ->scalarNode('private_key_path')
+                        ->setDeprecated('shopware/core', '6.7.0.0', 'private_key_path is deprecated and will be removed with Shopware 6.7')
+                        ->defaultValue('file://%kernel.project_dir%/config/jwt/private.pem')
+                    ->end()
+                    ->scalarNode('private_key_passphrase')
+                        ->setDeprecated('shopware/core', '6.7.0.0', 'private_key_passphrase is deprecated and will be removed with Shopware 6.7')
+                        ->defaultValue('shopware')
+                    ->end()
+                    ->scalarNode('public_key_path')
+                        ->setDeprecated('shopware/core', '6.7.0.0', 'public_key_path is deprecated and will be removed with Shopware 6.7')
+                        ->defaultValue('file://%kernel.project_dir%/config/jwt/public.pem')
+                    ->end()
                 ->end()
             ->end()
             ->scalarNode('max_limit')->end()
@@ -316,6 +336,7 @@ class Configuration implements ConfigurationInterface
                         ->scalarNode('name')->end()
                         ->booleanNode('default')->defaultFalse()->end()
                         ->booleanNode('major')->defaultFalse()->end()
+                        ->booleanNode('toggleable')->defaultFalse()->end()
                         ->scalarNode('description')->end()
                     ->end()
                 ->end()
@@ -358,6 +379,9 @@ class Configuration implements ConfigurationInterface
                     ->useAttributeAsKey('name')
                     ->prototype('scalar')->end()
                 ->end()
+                ->booleanNode('enforce_throw_exception')
+                    ->defaultFalse()
+                ->end()
             ->end();
 
         return $rootNode;
@@ -391,16 +415,12 @@ class Configuration implements ConfigurationInterface
                         ->arrayNode('delay_options')
                             ->children()
                                 ->scalarNode('storage')
-                                    ->defaultValue('cache')
+                                    ->defaultValue('redis')
                                 ->end()
                                 ->scalarNode('dsn')
                                     ->defaultValue('redis://localhost')
                                 ->end()
                             ->end()
-                        ->end()
-                        ->integerNode('count')
-                            ->setDeprecated('shopware/platform', '6.6.0.0')
-                            ->defaultValue(150)
                         ->end()
                         ->arrayNode('http_cache')
                             ->performNoDeepMerging()
@@ -520,7 +540,18 @@ class Configuration implements ConfigurationInterface
                     ->min(1)
                     ->defaultValue(120)
                 ->end()
-                ->scalarNode('redis_url')->end()
+                ->scalarNode('redis_url')->end() // @deprecated tag:v6.7.0 - will be removed
+                ->arrayNode('storage')
+                    ->children()
+                        ->enumNode('type')
+                            ->values(['mysql', 'redis'])
+                            ->defaultValue('mysql')
+                            ->end()
+                        ->arrayNode('config')
+                            ->children()
+                                ->scalarNode('dsn')->end()
+                            ->end()
+                    ->end()
             ->end();
 
         return $rootNode;
@@ -533,8 +564,15 @@ class Configuration implements ConfigurationInterface
         $rootNode = $treeBuilder->getRootNode();
         $rootNode
             ->children()
-            ->scalarNode('increment_storage')->end()
-            ->scalarNode('redis_url')->end()
+            ->enumNode('increment_storage')
+                ->values(['SQL', 'mysql', 'Redis', 'redis']) // @deprecated tag:v6.7.0 - only "mysql" and "redis" are allowed
+                ->defaultValue('mysql')
+                ->end()
+            ->scalarNode('redis_url')->end() // @deprecated tag:v6.7.0 - will be removed
+            ->arrayNode('config')
+                ->children()
+                    ->scalarNode('dsn')->end()
+                ->end()
             ->end();
 
         return $rootNode;
@@ -656,6 +694,7 @@ class Configuration implements ConfigurationInterface
         $rootNode
             ->children()
             ->booleanNode('update_mail_variables_on_send')->defaultTrue()->end()
+            ->integerNode('max_body_length')->defaultValue(0)->end()
             ->end();
 
         return $rootNode;
@@ -735,6 +774,64 @@ class Configuration implements ConfigurationInterface
                         ->scalarNode('dispatch_enabled')->end()
                         ->scalarNode('base_uri')->end()
                         ->scalarNode('batch_size')->end()
+                    ->end()
+                ->end()
+            ->end();
+
+        return $rootNode;
+    }
+
+    private function createFeatureToggleNode(): ArrayNodeDefinition
+    {
+        $treeBuilder = new TreeBuilder('feature_toggle');
+
+        $rootNode = $treeBuilder->getRootNode();
+        $rootNode
+            ->children()
+            ->booleanNode('enable')->defaultTrue()->end()
+            ->end();
+
+        return $rootNode;
+    }
+
+    private function createStagingNode(): ArrayNodeDefinition
+    {
+        $treeBuilder = new TreeBuilder('staging');
+
+        $rootNode = $treeBuilder->getRootNode();
+        $rootNode
+            ->children()
+                ->arrayNode('mailing')
+                    ->children()
+                        ->booleanNode('disable_delivery')->defaultTrue()->end()
+                    ->end()
+                ->end()
+                ->arrayNode('storefront')
+                    ->children()
+                        ->booleanNode('show_banner')->defaultTrue()->end()
+                    ->end()
+                ->end()
+                ->arrayNode('administration')
+                    ->children()
+                        ->booleanNode('show_banner')->defaultTrue()->end()
+                    ->end()
+                ->end()
+                ->arrayNode('sales_channel')
+                    ->children()
+                        ->arrayNode('domain_rewrite')
+                            ->arrayPrototype()
+                                ->children()
+                                    ->scalarNode('match')->end()
+                                    ->scalarNode('type')->defaultValue('equal')->end()
+                                    ->scalarNode('replace')->end()
+                                ->end()
+                            ->end()
+                        ->end()
+                    ->end()
+                ->end()
+                ->arrayNode('elasticsearch')
+                    ->children()
+                        ->booleanNode('check_for_existence')->defaultTrue()->end()
                     ->end()
                 ->end()
             ->end();

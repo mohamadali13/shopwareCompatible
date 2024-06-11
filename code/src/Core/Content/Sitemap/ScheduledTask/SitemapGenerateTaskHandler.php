@@ -24,7 +24,7 @@ use Symfony\Contracts\EventDispatcher\EventDispatcherInterface;
  * @internal
  */
 #[AsMessageHandler(handles: SitemapGenerateTask::class)]
-#[Package('sales-channel')]
+#[Package('services-settings')]
 final class SitemapGenerateTaskHandler extends ScheduledTaskHandler
 {
     /**
@@ -58,7 +58,7 @@ final class SitemapGenerateTaskHandler extends ScheduledTaskHandler
         $criteria->addAssociation('type');
         $criteria->addFilter(new EqualsFilter('type.id', Defaults::SALES_CHANNEL_TYPE_STOREFRONT));
 
-        $context = Context::createDefaultContext();
+        $context = Context::createCLIContext();
 
         $this->eventDispatcher->dispatch(
             new SitemapSalesChannelCriteriaEvent($criteria, $context)

@@ -11,7 +11,7 @@ use Shopware\Core\PlatformRequest;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
-use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\RouterInterface;
 
 #[Route(defaults: ['_routeScope' => ['api']])]
@@ -80,8 +80,8 @@ class AclController extends AbstractController
         $permissions = [];
 
         foreach ($this->router->getRouteCollection()->all() as $route) {
-            /** @var array<string>|null $acl */
-            if ($acl = $route->getDefault(PlatformRequest::ATTRIBUTE_ACL)) {
+            $acl = $route->getDefault(PlatformRequest::ATTRIBUTE_ACL);
+            if ($acl) {
                 $permissions[] = $acl;
             }
         }

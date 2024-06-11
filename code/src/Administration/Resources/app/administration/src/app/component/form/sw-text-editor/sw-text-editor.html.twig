@@ -24,7 +24,7 @@
         <!-- eslint-disable-next-line sw-deprecation-rules/no-twigjs-blocks -->
         {% block sw_text_editor_box_toolbar %}
         <sw-text-editor-toolbar
-            v-if="hasSelection || !isInlineEdit"
+            v-if="(hasSelection && !disabled) || !isInlineEdit"
             ref="text-editor-toolbar"
             :parent-is-active="isActive"
             :is-inline-edit="isInlineEdit"
@@ -59,8 +59,10 @@
             :value="value"
             :sanitize-input="sanitizeInput"
             :sanitize-field-name="sanitizeFieldName"
+            :sanitize-info-warn="sanitizeInfoWarn"
             set-focus
             @blur="emitHtmlContent"
+            @update:value="emitHtmlContent"
         />
 
         <div

@@ -59,12 +59,8 @@
             <argument type="service" id="Shopware\Core\System\CustomEntity\CustomEntityLifecycleService"/>
             <argument type="service" id="Shopware\Core\Framework\Plugin\PluginService"/>
             <argument type="service" id="Shopware\Core\Framework\Plugin\Util\VersionSanitizer"/>
-        </service>
 
-        <service id="Shopware\Core\Framework\Plugin\Changelog\ChangelogParser"/>
-
-        <service id="Shopware\Core\Framework\Plugin\Changelog\ChangelogService">
-            <argument type="service" id="Shopware\Core\Framework\Plugin\Changelog\ChangelogParser"/>
+            <tag name="kernel.event_subscriber"/>
         </service>
 
         <service id="Shopware\Core\Framework\Plugin\PluginManagementService">
@@ -83,7 +79,6 @@
                 <argument key="app">%kernel.app_dir%</argument>
             </argument>
             <argument type="service" id="Symfony\Component\Filesystem\Filesystem"/>
-            <argument type="service" id="cache.annotations"/>
         </service>
 
         <service id="Shopware\Core\Framework\Plugin\PluginZipDetector"/>

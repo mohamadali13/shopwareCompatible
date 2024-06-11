@@ -5,7 +5,8 @@
 const path = require('path');
 
 const baseRules = {
-    'file-progress/activate': 1,
+    // Disabled because it hides some warnings
+    'file-progress/activate': 0,
     // Match the max line length with the phpstorm default settings
     'max-len': ['error', 125, { ignoreRegExpLiterals: true }],
     // Warn about useless path segment in import statements
@@ -17,6 +18,7 @@ const baseRules = {
         vue: 'never',
     }],
     'no-console': ['error', { allow: ['warn', 'error'] }],
+    'no-warning-comments': ['error', { location: 'anywhere' }],
     'inclusive-language/use-inclusive-words': 'error',
     'comma-dangle': ['error', 'always-multiline'],
     'sw-core-rules/require-position-identifier': ['error', {
@@ -134,7 +136,8 @@ module.exports = {
                         'renderError',
                     ],
                 }],
-                // TODO: NEXT-18182 - Enable this rules again after VUE 3 migration
+                // eslint-disable-next-line no-warning-comments
+                // TODO: NEXT-35608 - Enable this rules again after VUE 3 migration
                 'vue/no-deprecated-destroyed-lifecycle': 'off',
                 'vue/no-deprecated-events-api': 'off',
                 'vue/require-slots-as-functions': 'off',
@@ -181,6 +184,10 @@ module.exports = {
                 'vue/no-deprecated-slot-attribute': ['error'],
                 'vue/no-deprecated-slot-scope-attribute': ['error'],
                 'sw-deprecation-rules/no-twigjs-blocks': 'error',
+                // @deprecated v.6.7.0.0 - will be error in v.6.7
+                'sw-deprecation-rules/no-deprecated-components': ['warn', 'disableFix'],
+                // @deprecated v.6.7.0.0 - will be error in v.6.7
+                'sw-deprecation-rules/no-deprecated-component-usage': ['warn', 'disableFix'],
                 'vue/no-useless-template-attributes': 'error',
                 'vue/no-lone-template': 'error',
 

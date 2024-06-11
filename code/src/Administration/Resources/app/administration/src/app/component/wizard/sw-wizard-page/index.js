@@ -17,7 +17,6 @@ Component.register('sw-wizard-page', {
         isActive: {
             type: Boolean,
             required: false,
-            // TODO: Boolean props should only be opt in and therefore default to false
             // eslint-disable-next-line vue/no-boolean-default
             default() {
                 return false;
@@ -47,27 +46,17 @@ Component.register('sw-wizard-page', {
         this.createdComponent();
     },
 
-    destroyed() {
+    unmounted() {
         this.destroyedComponent();
     },
 
     methods: {
         createdComponent() {
-            if (this.feature.isActive('VUE3')) {
-                this.$parent.$parent.$parent.$emit('page-add', this);
-                return;
-            }
-
-            this.$parent.$emit('page-add', this);
+            this.$parent.$parent.$parent.$emit('page-add', this);
         },
 
         destroyedComponent() {
-            if (this.feature.isActive('VUE3')) {
-                this.$parent.$parent.$parent.$emit('page-remove', this);
-                return;
-            }
-
-            this.$parent.$emit('page-remove', this);
+            this.$parent.$parent.$parent.$emit('page-remove', this);
         },
     },
 });

@@ -22,7 +22,6 @@ export default {
     ],
 
     props: {
-        // FIXME: add type to salesChannel property
         // eslint-disable-next-line vue/require-prop-types
         salesChannel: {
             required: true,
@@ -64,7 +63,7 @@ export default {
         },
 
         currentDomainModalTitle() {
-            if (this.currentDomain.isNew()) {
+            if (this.currentDomain?.isNew()) {
                 return this.$t('sw-sales-channel.detail.titleCreateDomain');
             }
 
@@ -74,7 +73,7 @@ export default {
         },
 
         currentDomainModalButtonText() {
-            if (this.currentDomain.isNew()) {
+            if (this.currentDomain?.isNew()) {
                 return this.$t('sw-sales-channel.detail.buttonAddDomain');
             }
             return this.$t('sw-sales-channel.detail.buttonEditDomain');

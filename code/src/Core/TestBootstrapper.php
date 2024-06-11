@@ -3,7 +3,6 @@
 namespace Shopware\Core;
 
 use Composer\Autoload\ClassLoader;
-use DG\BypassFinals;
 use Doctrine\DBAL\Connection;
 use Shopware\Core\DevOps\StaticAnalyze\StaticAnalyzeKernel;
 use Shopware\Core\Framework\Adapter\Kernel\KernelFactory;
@@ -11,6 +10,7 @@ use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Plugin\KernelPluginLoader\DbalKernelPluginLoader;
 use Shopware\Core\Framework\Test\TestCaseBase\KernelLifecycleManager;
 use Symfony\Bundle\FrameworkBundle\Console\Application;
+use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -39,8 +39,6 @@ class TestBootstrapper
 
     private ?OutputInterface $output = null;
 
-    private bool $bypassFinals = true;
-
     /**
      * @var array<string>
      */
@@ -63,10 +61,6 @@ class TestBootstrapper
 
         $classLoader = $this->getClassLoader();
 
-        if (class_exists(BypassFinals::class) && $this->bypassFinals) {
-            BypassFinals::enable();
-        }
-
         if ($this->loadEnvFile) {
             $this->loadEnvFile();
         }
@@ -84,16 +78,6 @@ class TestBootstrapper
         } elseif ($this->forceInstallPlugins) {
             $this->installPlugins();
         }
-
-        return $this;
-    }
-
-    /**
-     * @deprecated tag:v6.6.0 - Will be removed without replacement - reason:remove-command
-     */
-    public function setBypassFinals(bool $bypassFinals): TestBootstrapper
-    {
-        $this->bypassFinals = $bypassFinals;
 
         return $this;
     }
@@ -325,9 +309,14 @@ class TestBootstrapper
     {
         foreach ($this->activePlugins as $pluginName) {
             $pathToComposerJson = $this->getProjectDir() . '/custom/plugins/' . $pluginName . '/composer.json';
+            $pathToComposerJsonStaticPlugins = $this->getProjectDir() . '/custom/static-plugins/' . $pluginName . '/composer.json';
+
+            if (!\is_file($pathToComposerJson) && !\is_file($pathToComposerJsonStaticPlugins)) {
+                throw new \RuntimeException(sprintf('Could not find plugin: %s in of these paths: %s or %s', $pluginName, $pathToComposerJson, $pathToComposerJsonStaticPlugins));
+            }
 
             if (!\is_file($pathToComposerJson)) {
-                throw new \RuntimeException(sprintf('Could not find plugin: %s at path: %s', $pluginName, $pathToComposerJson));
+                $pathToComposerJson = $pathToComposerJsonStaticPlugins;
             }
 
             $plugin = json_decode((string) file_get_contents($pathToComposerJson), true, 512, \JSON_THROW_ON_ERROR);
@@ -412,22 +401,22 @@ class TestBootstrapper
 
     private function install(): void
     {
-        $installCommand = (new Application($this->getKernel()))->find('system:install');
+        $application = new Application($this->getKernel());
 
-        $returnCode = $installCommand->run(
+        $returnCode = $application->doRun(
             new ArrayInput(
                 [
+                    'command' => 'system:install',
                     '--create-database' => true,
                     '--force' => true,
                     '--drop-database' => true,
                     '--basic-setup' => true,
                     '--no-assign-theme' => true,
-                ],
-                $installCommand->getDefinition()
+                ]
             ),
             $this->getOutput()
         );
-        if ($returnCode !== 0) {
+        if ($returnCode !== Command::SUCCESS) {
             throw new \RuntimeException('system:install failed');
         }
 
@@ -438,28 +427,23 @@ class TestBootstrapper
     private function installPlugins(): void
     {
         $application = new Application($this->getKernel());
-        $refreshCommand = $application->find('plugin:refresh');
-        $refreshCommand->run(new ArrayInput([], $refreshCommand->getDefinition()), $this->getOutput());
+        $application->doRun(new ArrayInput(['command' => 'plugin:refresh']), $this->getOutput());
 
         $kernel = KernelLifecycleManager::bootKernel();
 
         $application = new Application($kernel);
-        $installCommand = $application->find('plugin:install');
-        $definition = $installCommand->getDefinition();
 
         foreach ($this->activePlugins as $activePlugin) {
             $args = [
+                'command' => 'plugin:install',
                 '--activate' => true,
                 '--reinstall' => true,
                 'plugins' => [$activePlugin],
             ];
 
-            $returnCode = $installCommand->run(
-                new ArrayInput($args, $definition),
-                $this->getOutput()
-            );
+            $returnCode = $application->doRun(new ArrayInput($args), $this->getOutput());
 
-            if ($returnCode !== 0) {
+            if ($returnCode !== Command::SUCCESS) {
                 throw new \RuntimeException('system:install failed');
             }
         }

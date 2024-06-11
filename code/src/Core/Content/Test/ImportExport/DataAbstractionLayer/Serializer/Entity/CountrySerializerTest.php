@@ -47,9 +47,7 @@ class CountrySerializerTest extends TestCase
 
         $serialized = iterator_to_array($this->serializer->serialize($config, $this->countryRepository->getDefinition(), $country));
 
-        /** @var \Traversable<mixed, mixed> $deserialized */
-        $deserialized = $this->serializer->deserialize($config, $this->countryRepository->getDefinition(), $serialized);
-        $deserialized = iterator_to_array($deserialized);
+        $deserialized = iterator_to_array($this->serializer->deserialize($config, $this->countryRepository->getDefinition(), $serialized));
 
         static::assertSame($this->countryId, $deserialized['id']);
     }

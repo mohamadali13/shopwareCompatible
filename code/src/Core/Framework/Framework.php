@@ -3,11 +3,14 @@
 namespace Shopware\Core\Framework;
 
 use Shopware\Core\Framework\Adapter\Cache\CacheValueCompressor;
+use Shopware\Core\Framework\Adapter\Cache\ReverseProxy\ReverseProxyCompilerPass;
+use Shopware\Core\Framework\DataAbstractionLayer\AttributeEntityCompiler;
 use Shopware\Core\Framework\DataAbstractionLayer\DefinitionInstanceRegistry;
+use Shopware\Core\Framework\DataAbstractionLayer\Exception\DefinitionNotFoundException;
 use Shopware\Core\Framework\DataAbstractionLayer\ExtensionRegistry;
-use Shopware\Core\Framework\DependencyInjection\CompilerPass\ActionEventCompilerPass;
 use Shopware\Core\Framework\DependencyInjection\CompilerPass\AssetBundleRegistrationCompilerPass;
 use Shopware\Core\Framework\DependencyInjection\CompilerPass\AssetRegistrationCompilerPass;
+use Shopware\Core\Framework\DependencyInjection\CompilerPass\AttributeEntityCompilerPass;
 use Shopware\Core\Framework\DependencyInjection\CompilerPass\AutoconfigureCompilerPass;
 use Shopware\Core\Framework\DependencyInjection\CompilerPass\DefaultTransportCompilerPass;
 use Shopware\Core\Framework\DependencyInjection\CompilerPass\DemodataCompilerPass;
@@ -23,8 +26,10 @@ use Shopware\Core\Framework\DependencyInjection\CompilerPass\RouteScopeCompilerP
 use Shopware\Core\Framework\DependencyInjection\CompilerPass\TwigEnvironmentCompilerPass;
 use Shopware\Core\Framework\DependencyInjection\CompilerPass\TwigLoaderConfigCompilerPass;
 use Shopware\Core\Framework\DependencyInjection\FrameworkExtension;
+use Shopware\Core\Framework\Feature\FeatureFlagRegistry;
 use Shopware\Core\Framework\Increment\IncrementerGatewayCompilerPass;
 use Shopware\Core\Framework\Log\Package;
+use Shopware\Core\Framework\MessageQueue\MessageHandlerCompilerPass;
 use Shopware\Core\Framework\Migration\MigrationCompilerPass;
 use Shopware\Core\Framework\Test\DependencyInjection\CompilerPass\ContainerVisibilityCompilerPass;
 use Shopware\Core\Framework\Test\RateLimiter\DisableRateLimiterCompilerPass;
@@ -95,6 +100,7 @@ class Framework extends Bundle
         $loader->load('webhook.xml');
         $loader->load('rate-limiter.xml');
         $loader->load('increment.xml');
+        $loader->load('flag.xml');
 
         if ($container->getParameter('kernel.environment') === 'test') {
             $loader->load('services_test.xml');
@@ -104,10 +110,10 @@ class Framework extends Bundle
         }
 
         // make sure to remove services behind a feature flag, before some other compiler passes may reference them, therefore the high priority
+        $container->addCompilerPass(new AttributeEntityCompilerPass(new AttributeEntityCompiler()), PassConfig::TYPE_BEFORE_OPTIMIZATION, 1000);
         $container->addCompilerPass(new FeatureFlagCompilerPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, 1000);
         $container->addCompilerPass(new EntityCompilerPass());
         $container->addCompilerPass(new MigrationCompilerPass(), PassConfig::TYPE_AFTER_REMOVING);
-        $container->addCompilerPass(new ActionEventCompilerPass());
         $container->addCompilerPass(new DisableTwigCacheWarmerCompilerPass());
         $container->addCompilerPass(new DefaultTransportCompilerPass());
         $container->addCompilerPass(new TwigLoaderConfigCompilerPass());
@@ -118,9 +124,11 @@ class Framework extends Bundle
         $container->addCompilerPass(new FilesystemConfigMigrationCompilerPass());
         $container->addCompilerPass(new RateLimiterCompilerPass());
         $container->addCompilerPass(new IncrementerGatewayCompilerPass());
+        $container->addCompilerPass(new ReverseProxyCompilerPass());
         $container->addCompilerPass(new RedisPrefixCompilerPass(), PassConfig::TYPE_BEFORE_REMOVING, 0);
         $container->addCompilerPass(new AutoconfigureCompilerPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, 1000);
         $container->addCompilerPass(new HttpCacheConfigCompilerPass());
+        $container->addCompilerPass(new MessageHandlerCompilerPass(), PassConfig::TYPE_BEFORE_OPTIMIZATION, 1000);
 
         if ($container->getParameter('kernel.environment') === 'test') {
             $container->addCompilerPass(new DisableRateLimiterCompilerPass());
@@ -140,15 +148,13 @@ class Framework extends Bundle
 
         \assert($this->container instanceof ContainerInterface, 'Container is not set yet, please call setContainer() before calling boot(), see `src/Core/Kernel.php:186`.');
 
-        $featureFlags = $this->container->getParameter('shopware.feature.flags');
-        if (!\is_array($featureFlags)) {
-            throw new \RuntimeException('Container parameter "shopware.feature.flags" needs to be an array');
-        }
-        Feature::registerFeatures($featureFlags);
+        /** @var FeatureFlagRegistry $featureFlagRegistry */
+        $featureFlagRegistry = $this->container->get(FeatureFlagRegistry::class);
+        $featureFlagRegistry->register();
 
         $cacheDir = $this->container->getParameter('kernel.cache_dir');
         if (!\is_string($cacheDir)) {
-            throw new \RuntimeException('Container parameter "kernel.cache_dir" needs to be a string');
+            throw FrameworkException::invalidKernelCacheDir();
         }
 
         $this->registerEntityExtensions(
@@ -176,7 +182,7 @@ class Framework extends Bundle
     {
         $cacheDir = $container->getParameter('kernel.cache_dir');
         if (!\is_string($cacheDir)) {
-            throw new \RuntimeException('Container parameter "kernel.cache_dir" needs to be a string');
+            throw FrameworkException::invalidKernelCacheDir();
         }
 
         $locator = new FileLocator('Resources/config');
@@ -211,11 +217,19 @@ class Framework extends Bundle
             /** @var string $class */
             $class = $extension->getDefinitionClass();
 
-            $definition = $definitionRegistry->get($class);
+            try {
+                $definition = $definitionRegistry->get($class);
+            } catch (DefinitionNotFoundException) {
+                continue;
+            }
 
             $definition->addExtension($extension);
 
-            $salesChannelDefinition = $salesChannelRegistry->get($class);
+            try {
+                $salesChannelDefinition = $salesChannelRegistry->get($class);
+            } catch (DefinitionNotFoundException) {
+                continue;
+            }
 
             // same definition? do not added extension
             if ($salesChannelDefinition !== $definition) {

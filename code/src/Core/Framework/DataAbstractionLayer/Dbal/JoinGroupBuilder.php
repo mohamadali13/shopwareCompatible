@@ -13,7 +13,6 @@ use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\Filter;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\MultiFilter;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\NotFilter;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\SingleFieldFilter;
-use Shopware\Core\Framework\Feature;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Uuid\Uuid;
 
@@ -161,9 +160,7 @@ class JoinGroupBuilder
             if ($field instanceof ManyToManyAssociationField || $field instanceof OneToManyAssociationField) {
                 $found = true;
 
-                if (Feature::isActive('JOIN_FILTER')) {
-                    break;
-                }
+                break;
             }
         }
         $field = array_pop($fields);

@@ -2,12 +2,15 @@
 
 namespace Shopware\Core\Content\Product\SalesChannel\Detail;
 
+use Doctrine\DBAL\Connection;
 use Shopware\Core\Content\Category\Service\CategoryBreadcrumbBuilder;
+use Shopware\Core\Content\Cms\CmsPageEntity;
 use Shopware\Core\Content\Cms\DataResolver\ResolverContext\EntityResolverContext;
 use Shopware\Core\Content\Cms\SalesChannel\SalesChannelCmsPageLoaderInterface;
 use Shopware\Core\Content\Product\Aggregate\ProductVisibility\ProductVisibilityDefinition;
 use Shopware\Core\Content\Product\Exception\ProductNotFoundException;
 use Shopware\Core\Content\Product\SalesChannel\AbstractProductCloseoutFilterFactory;
+use Shopware\Core\Content\Product\SalesChannel\Detail\Event\ResolveVariantIdEvent;
 use Shopware\Core\Content\Product\SalesChannel\ProductAvailableFilter;
 use Shopware\Core\Content\Product\SalesChannel\SalesChannelProductDefinition;
 use Shopware\Core\Content\Product\SalesChannel\SalesChannelProductEntity;
@@ -18,12 +21,14 @@ use Shopware\Core\Framework\DataAbstractionLayer\Search\Filter\EqualsFilter;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Sorting\FieldSorting;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Plugin\Exception\DecorationPatternException;
+use Shopware\Core\Framework\Uuid\Uuid;
 use Shopware\Core\Profiling\Profiler;
 use Shopware\Core\System\SalesChannel\Entity\SalesChannelRepository;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Core\System\SystemConfig\SystemConfigService;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Routing\Attribute\Route;
 
 #[Route(defaults: ['_routeScope' => ['store-api']])]
 #[Package('inventory')]
@@ -35,11 +40,13 @@ class ProductDetailRoute extends AbstractProductDetailRoute
     public function __construct(
         private readonly SalesChannelRepository $productRepository,
         private readonly SystemConfigService $config,
+        private readonly Connection $connection,
         private readonly ProductConfiguratorLoader $configuratorLoader,
         private readonly CategoryBreadcrumbBuilder $breadcrumbBuilder,
         private readonly SalesChannelCmsPageLoaderInterface $cmsPageLoader,
         private readonly SalesChannelProductDefinition $productDefinition,
-        private readonly AbstractProductCloseoutFilterFactory $productCloseoutFilterFactory
+        private readonly AbstractProductCloseoutFilterFactory $productCloseoutFilterFactory,
+        private readonly EventDispatcherInterface $eventDispatcher
     ) {
     }
 
@@ -54,7 +61,14 @@ class ProductDetailRoute extends AbstractProductDetailRoute
         return Profiler::trace('product-detail-route', function () use ($productId, $request, $context, $criteria) {
             $mainVariantId = $this->checkVariantListingConfig($productId, $context);
 
-            $productId = $mainVariantId ?? $this->findBestVariant($productId, $context);
+            $resolveVariantIdEvent = new ResolveVariantIdEvent(
+                $productId,
+                $mainVariantId,
+                $context,
+            );
+
+            $this->eventDispatcher->dispatch($resolveVariantIdEvent);
+            $productId = $resolveVariantIdEvent->getResolvedVariantId() ?? $this->findBestVariant($productId, $context);
 
             $this->addFilters($context, $criteria);
 
@@ -89,7 +103,8 @@ class ProductDetailRoute extends AbstractProductDetailRoute
                     $resolverContext
                 );
 
-                if ($page = $pages->first()) {
+                $page = $pages->first();
+                if ($page instanceof CmsPageEntity) {
                     $product->setCmsPage($page);
                 }
             }
@@ -115,23 +130,37 @@ class ProductDetailRoute extends AbstractProductDetailRoute
         }
     }
 
-    /**
-     * @throws InconsistentCriteriaIdsException
-     */
     private function checkVariantListingConfig(string $productId, SalesChannelContext $context): ?string
     {
-        /** @var SalesChannelProductEntity|null $product */
-        $product = $this->productRepository->search(new Criteria([$productId]), $context)->first();
-
-        if ($product === null || $product->getParentId() !== null) {
+        if (!Uuid::isValid($productId)) {
             return null;
         }
 
-        if (($listingConfig = $product->getVariantListingConfig()) === null || $listingConfig->getDisplayParent() !== true) {
+        $productData = $this->connection->fetchAssociative(
+            '# product-detail-route::check-variant-listing-config
+            SELECT
+                variant_listing_config as variantListingConfig,
+                parent_id as parentId
+            FROM product
+            WHERE id = :id
+            AND version_id = :versionId',
+            [
+                'id' => Uuid::fromHexToBytes($productId),
+                'versionId' => Uuid::fromHexToBytes($context->getContext()->getVersionId()),
+            ]
+        );
+
+        if (empty($productData) || $productData['variantListingConfig'] === null) {
             return null;
         }
 
-        return $listingConfig->getMainVariantId();
+        $variantListingConfig = json_decode((string) $productData['variantListingConfig'], true, 512, \JSON_THROW_ON_ERROR);
+
+        if (isset($variantListingConfig['displayParent']) && $variantListingConfig['displayParent'] === true) {
+            return null;
+        }
+
+        return $variantListingConfig['mainVariantId'] ?? null;
     }
 
     /**
@@ -141,8 +170,8 @@ class ProductDetailRoute extends AbstractProductDetailRoute
     {
         $criteria = (new Criteria())
             ->addFilter(new EqualsFilter('product.parentId', $productId))
-            ->addSorting(new FieldSorting('product.price'))
             ->addSorting(new FieldSorting('product.available', FieldSorting::DESCENDING))
+            ->addSorting(new FieldSorting('product.price'))
             ->setLimit(1);
 
         $criteria->setTitle('product-detail-route::find-best-variant');

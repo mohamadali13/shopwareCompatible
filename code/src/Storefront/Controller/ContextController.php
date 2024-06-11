@@ -4,6 +4,7 @@ namespace Shopware\Storefront\Controller;
 
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Routing\RoutingException;
+use Shopware\Core\Framework\Uuid\Uuid;
 use Shopware\Core\Framework\Validation\DataBag\RequestDataBag;
 use Shopware\Core\Framework\Validation\Exception\ConstraintViolationException;
 use Shopware\Core\System\SalesChannel\Context\SalesChannelContextService;
@@ -15,7 +16,7 @@ use Symfony\Component\HttpFoundation\RedirectResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\RequestStack;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\Routing\Exception\RouteNotFoundException;
 use Symfony\Component\Routing\RouterInterface;
 
@@ -49,8 +50,12 @@ class ContextController extends StorefrontController
     public function switchLanguage(Request $request, SalesChannelContext $context): RedirectResponse
     {
         $languageId = $request->request->get('languageId');
-        if (!$languageId || !\is_string($languageId)) {
+        if (!$languageId) {
             throw RoutingException::missingRequestParameter('languageId');
+        }
+
+        if (!\is_string($languageId) || !Uuid::isValid($languageId)) {
+            throw RoutingException::invalidRequestParameter('languageId');
         }
 
         try {

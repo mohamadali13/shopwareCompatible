@@ -16,12 +16,7 @@ export default {
         Mixin.getByName('sw-inline-snippet'),
     ],
 
-    model: {
-        prop: 'config',
-    },
-
     props: {
-        // FIXME: add type to locales
         // eslint-disable-next-line vue/require-prop-types
         locales: {
             required: true,

@@ -8,7 +8,7 @@ import type { UserInfo } from '../../../../core/service/api/store.api.service';
 const { State, Mixin, Filter } = Shopware;
 
 /**
- * @package services-settings
+ * @package checkout
  * @private
  */
 export default Shopware.Component.wrapComponentConfig({
@@ -133,6 +133,7 @@ export default Shopware.Component.wrapComponentConfig({
         },
 
         showApiNotification(error: MappedError) {
+            // @ts-expect-error
             const docLink = this.$tc('sw-extension.errors.messageToTheShopwareDocumentation', 0, error.parameters);
 
             // Methods from mixins are not recognized

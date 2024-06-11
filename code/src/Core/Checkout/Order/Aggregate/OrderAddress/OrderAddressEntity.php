@@ -7,7 +7,6 @@ use Shopware\Core\Checkout\Order\OrderEntity;
 use Shopware\Core\Framework\DataAbstractionLayer\Entity;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityCustomFieldsTrait;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityIdTrait;
-use Shopware\Core\Framework\Feature;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\System\Country\Aggregate\CountryState\CountryStateEntity;
 use Shopware\Core\System\Country\CountryEntity;
@@ -49,12 +48,7 @@ class OrderAddressEntity extends Entity
      */
     protected $street;
 
-    /**
-     * @deprecated tag:v6.6.0 - Will be nullable, use `?string` instead `string`
-     *
-     * @var string|null
-     */
-    protected $zipcode;
+    protected ?string $zipcode;
 
     /**
      * @var string
@@ -191,29 +185,12 @@ class OrderAddressEntity extends Entity
         $this->street = $street;
     }
 
-    /**
-     * @deprecated tag:v6.6.0 - Will be nullable, use `?string` instead `string`
-     */
-    public function getZipcode(): string
+    public function getZipcode(): ?string
     {
-        /**
-         * @deprecated tag:v6.6.0 - Remove as return type will be nullable
-         */
-        if ($this->zipcode === null) {
-            Feature::triggerDeprecationOrThrow('v6.6.0.0', 'Zip code will be nullable');
-
-            return '';
-        }
-
         return $this->zipcode;
     }
 
-    /**
-     * @deprecated tag:v6.6.0 - Will be nullable, use `?string` instead `string`
-     *
-     * @phpstan-ignore-next-line phpstan will require a feature deprecation call, which does not make sense on setters
-     */
-    public function setZipcode(string $zipcode): void
+    public function setZipcode(?string $zipcode): void
     {
         $this->zipcode = $zipcode;
     }

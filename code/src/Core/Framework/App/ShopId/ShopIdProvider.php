@@ -43,10 +43,8 @@ class ShopIdProvider
             return $newShopId;
         }
 
-        if (EnvironmentHelper::getVariable('APP_URL') !== ($shopId['app_url'] ?? '')) {
-            /** @var string $appUrl */
-            $appUrl = EnvironmentHelper::getVariable('APP_URL');
-
+        $appUrl = EnvironmentHelper::getVariable('APP_URL');
+        if (\is_string($appUrl) && $appUrl !== ($shopId['app_url'] ?? '')) {
             if ($this->hasApps()) {
                 throw new AppUrlChangeDetectedException($shopId['app_url'], $appUrl, $shopId['value']);
             }

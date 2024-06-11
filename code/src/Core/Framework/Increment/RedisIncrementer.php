@@ -3,10 +3,9 @@
 namespace Shopware\Core\Framework\Increment;
 
 use Shopware\Core\Framework\Log\Package;
-use Shopware\Core\Framework\Plugin\Exception\DecorationPatternException;
 
 /**
- * @deprecated tag:v6.6.0 - reason:becomes-internal - Type hint to AbstractIncrementer, implementations are internal and should not be used for type hints
+ * @internal
  */
 #[Package('core')]
 class RedisIncrementer extends AbstractIncrementer
@@ -18,11 +17,6 @@ class RedisIncrementer extends AbstractIncrementer
      */
     public function __construct(private $redis)
     {
-    }
-
-    public function getDecorated(): AbstractIncrementer
-    {
-        throw new DecorationPatternException(self::class);
     }
 
     public function increment(string $cluster, string $key): void
@@ -47,8 +41,7 @@ class RedisIncrementer extends AbstractIncrementer
             return;
         }
 
-        $keys = $this->redis->keys($this->getKey($cluster));
-        \assert(\is_array($keys));
+        $keys = $this->getKeys($cluster);
 
         foreach ($keys as $key) {
             $this->redis->del($key);
@@ -57,8 +50,7 @@ class RedisIncrementer extends AbstractIncrementer
 
     public function list(string $cluster, int $limit = 5, int $offset = 0): array
     {
-        $keys = $this->redis->keys($this->getKey($cluster));
-        \assert(\is_array($keys));
+        $keys = $this->getKeys($cluster);
 
         if (empty($keys)) {
             return [];
@@ -99,5 +91,26 @@ class RedisIncrementer extends AbstractIncrementer
         }
 
         return sprintf('%s:%s:%s', $this->poolName, $cluster, $key);
+    }
+
+    /**
+     * @return string[]
+     */
+    private function getKeys(string $cluster): array
+    {
+        $keys = $this->redis->keys($this->getKey($cluster));
+        \assert(\is_array($keys));
+
+        if (empty($keys) || !\method_exists($this->redis, 'getOption')) {
+            return [];
+        }
+
+        $prefix = $this->redis->getOption(\Redis::OPT_PREFIX);
+        if (\is_string($prefix)) {
+            $prefixLength = \strlen($prefix);
+            $keys = \array_map(fn ($key) => \str_starts_with($key, $prefix) ? \substr($key, $prefixLength) : $key, $keys);
+        }
+
+        return $keys;
     }
 }

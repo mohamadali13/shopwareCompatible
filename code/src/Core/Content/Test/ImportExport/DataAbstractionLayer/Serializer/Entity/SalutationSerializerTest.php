@@ -58,9 +58,7 @@ class SalutationSerializerTest extends TestCase
 
         $serialized = iterator_to_array($this->serializer->serialize($config, $this->salutationRepository->getDefinition(), $salutation));
 
-        /** @var \Traversable<mixed, mixed> $deserialized */
-        $deserialized = $this->serializer->deserialize($config, $this->salutationRepository->getDefinition(), $serialized);
-        $deserialized = iterator_to_array($deserialized);
+        $deserialized = iterator_to_array($this->serializer->deserialize($config, $this->salutationRepository->getDefinition(), $serialized));
 
         $expectedTranslations = $salutation['translations'][Defaults::LANGUAGE_SYSTEM];
         $actualTranslations = $deserialized['translations'][Defaults::LANGUAGE_SYSTEM];
@@ -78,9 +76,7 @@ class SalutationSerializerTest extends TestCase
             'salutationKey' => 'mrs',
         ];
 
-        /** @var \Traversable<mixed, mixed> $deserialized */
-        $deserialized = $this->serializer->deserialize($config, $this->salutationRepository->getDefinition(), $salutation);
-        $deserialized = iterator_to_array($deserialized);
+        $deserialized = iterator_to_array($this->serializer->deserialize($config, $this->salutationRepository->getDefinition(), $salutation));
 
         static::assertSame($salutation['salutationKey'], $deserialized['salutationKey']);
         static::assertArrayHasKey('id', $deserialized);
@@ -99,9 +95,7 @@ class SalutationSerializerTest extends TestCase
             'salutationKey' => 'unknown',
         ];
 
-        /** @var \Traversable<mixed, mixed> $deserialized */
-        $deserialized = $this->serializer->deserialize($config, $this->salutationRepository->getDefinition(), $salutation);
-        $deserialized = iterator_to_array($deserialized);
+        $deserialized = iterator_to_array($this->serializer->deserialize($config, $this->salutationRepository->getDefinition(), $salutation));
 
         static::assertArrayNotHasKey('salutationKey', $deserialized);
         static::assertArrayHasKey('id', $deserialized);

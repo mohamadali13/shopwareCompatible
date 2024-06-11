@@ -110,11 +110,11 @@ class ProductCategoryDenormalizer
     private function fetchMapping(array $ids, Context $context): array
     {
         $query = $this->connection->createQueryBuilder();
-        $query->select([
+        $query->select(
             'LOWER(HEX(product.id)) as product_id',
             'GROUP_CONCAT(category.path SEPARATOR \'\') as paths',
             'GROUP_CONCAT(LOWER(HEX(category.id)) SEPARATOR \'|\') as ids',
-        ]);
+        );
         $query->from('product');
         $query->leftJoin(
             'product',
@@ -143,7 +143,10 @@ class ProductCategoryDenormalizer
 
         $rows = $query->executeQuery()->fetchAllAssociative();
 
-        return FetchModeHelper::groupUnique($rows);
+        /** @var array<string, array<string, string>> $unique */
+        $unique = FetchModeHelper::groupUnique($rows);
+
+        return $unique;
     }
 
     /**

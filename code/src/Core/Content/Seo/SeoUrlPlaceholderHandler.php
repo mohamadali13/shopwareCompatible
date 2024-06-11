@@ -33,7 +33,7 @@ class SeoUrlPlaceholderHandler implements SeoUrlPlaceholderHandlerInterface
      */
     public function generate($name, array $parameters = []): string
     {
-        $path = $this->router->generate($name, $parameters, RouterInterface::ABSOLUTE_PATH);
+        $path = $this->router->generate($name, $parameters);
 
         $request = $this->requestStack->getMainRequest();
         $basePath = $request ? $request->getBasePath() : '';
@@ -62,7 +62,7 @@ class SeoUrlPlaceholderHandler implements SeoUrlPlaceholderHandlerInterface
     }
 
     /**
-     * @param array<string, string> $matches
+     * @param list<string> $matches
      *
      * @return array<string, string>
      */

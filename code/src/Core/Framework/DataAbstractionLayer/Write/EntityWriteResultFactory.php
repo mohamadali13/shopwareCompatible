@@ -4,7 +4,7 @@ namespace Shopware\Core\Framework\DataAbstractionLayer\Write;
 
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
-use Shopware\Core\Framework\Api\Exception\IncompletePrimaryKeyException;
+use Shopware\Core\Framework\DataAbstractionLayer\DataAbstractionLayerException;
 use Shopware\Core\Framework\DataAbstractionLayer\Dbal\EntityDefinitionQueryHelper;
 use Shopware\Core\Framework\DataAbstractionLayer\DefinitionInstanceRegistry;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityDefinition;
@@ -16,6 +16,7 @@ use Shopware\Core\Framework\DataAbstractionLayer\Field\StorageAware;
 use Shopware\Core\Framework\DataAbstractionLayer\Field\VersionField;
 use Shopware\Core\Framework\DataAbstractionLayer\FieldCollection;
 use Shopware\Core\Framework\DataAbstractionLayer\MappingEntityDefinition;
+use Shopware\Core\Framework\DataAbstractionLayer\Write\Command\ChangeSet;
 use Shopware\Core\Framework\DataAbstractionLayer\Write\Command\ChangeSetAware;
 use Shopware\Core\Framework\DataAbstractionLayer\Write\Command\DeleteCommand;
 use Shopware\Core\Framework\DataAbstractionLayer\Write\Command\InsertCommand;
@@ -204,7 +205,7 @@ class EntityWriteResultFactory
         // find foreign key field for parent definition (product_price.product_id in case of product_price provided)
         $fkField = $fkField->first();
         if (!$fkField instanceof FkField) {
-            throw new \RuntimeException(sprintf('Can not detect foreign key for parent definition %s', $parent->getEntityName()));
+            throw DataAbstractionLayerException::missingParentForeignKey($parent->getEntityName());
         }
 
         $primaryKeys = $this->getPrimaryKeysOfFkField($definition, $ids, $fkField);
@@ -335,12 +336,12 @@ class EntityWriteResultFactory
         $order = [];
         // we have to create the written events in the written order, otherwise the version manager would
         // trace the change sets in a wrong order
-        foreach ($queue->getCommandsInOrder() as $command) {
-            $class = $command->getDefinition()->getEntityName();
+        foreach ($queue->getCommandsInOrder($this->registry) as $command) {
+            $class = $command->getEntityName();
             if (isset($order[$class])) {
                 continue;
             }
-            $order[$class] = $command->getDefinition();
+            $order[$class] = $this->registry->getByEntityName($class);
         }
 
         foreach ($order as $class => $definition) {
@@ -376,10 +377,11 @@ class EntityWriteResultFactory
                 }
 
                 $payload = $this->getCommandPayload($command);
+
                 $writeResults[$uniqueId] = new EntityWriteResult(
                     $primaryKey,
-                    $payload,
-                    $command->getDefinition()->getEntityName(),
+                    \array_merge($payload, ($writeResults[$uniqueId] ?? null)?->getPayload() ?? []),
+                    $definition->getEntityName(),
                     $operation,
                     $command->getEntityExistence(),
                     $command instanceof ChangeSetAware ? $command->getChangeSet() : null
@@ -396,10 +398,15 @@ class EntityWriteResultFactory
                     $payload = $writeResults[$uniqueId]->getPayload();
                 }
 
-                $field = $command->getDefinition()->getFields()->getByStorageName($command->getStorageName());
+                $definition = $this->registry->getByEntityName($command->getEntityName());
+
+                $field = $definition->getFields()->getByStorageName($command->getStorageName());
 
                 if (!$field instanceof Field) {
-                    throw new \RuntimeException(sprintf('Field by storage name %s not found', $command->getStorageName()));
+                    throw DataAbstractionLayerException::fieldByStorageNameNotFound(
+                        $command->getEntityName(),
+                        $command->getStorageName()
+                    );
                 }
 
                 $decodedPayload = $field->getSerializer()->decode(
@@ -408,10 +415,18 @@ class EntityWriteResultFactory
                 );
                 $mergedPayload = array_merge($payload, [$field->getPropertyName() => $decodedPayload]);
 
+                if (isset($writeResults[$uniqueId])) {
+                    $changeSet = $writeResults[$uniqueId]->getChangeSet();
+
+                    if ($changeSet instanceof ChangeSet && $command->getChangeSet()) {
+                        $command->getChangeSet()->merge($changeSet);
+                    }
+                }
+
                 $writeResults[$uniqueId] = new EntityWriteResult(
                     $this->getCommandPrimaryKey($command, $primaryKeys),
                     $mergedPayload,
-                    $command->getDefinition()->getEntityName(),
+                    $command->getEntityName(),
                     EntityWriteResult::OPERATION_UPDATE,
                     $command->getEntityExistence(),
                     $command->getChangeSet()
@@ -461,7 +476,9 @@ class EntityWriteResultFactory
             $payload = $command->getPayload();
         }
 
-        $fields = $command->getDefinition()->getFields();
+        $definition = $this->registry->getByEntityName($command->getEntityName());
+
+        $fields = $definition->getFields();
 
         $convertedPayload = [];
         foreach ($payload as $key => $value) {
@@ -474,7 +491,7 @@ class EntityWriteResultFactory
             $convertedPayload[$field->getPropertyName()] = $field->getSerializer()->decode($field, $value);
         }
 
-        $primaryKeys = $command->getDefinition()->getPrimaryKeys();
+        $primaryKeys = $definition->getPrimaryKeys();
 
         foreach ($primaryKeys as $primaryKey) {
             if (!$primaryKey instanceof StorageAware) {
@@ -485,12 +502,9 @@ class EntityWriteResultFactory
             }
 
             if (!\array_key_exists($primaryKey->getStorageName(), $command->getPrimaryKey())) {
-                throw new \RuntimeException(
-                    sprintf(
-                        'Primary key field %s::%s not found in payload or command primary key',
-                        $command->getDefinition()->getEntityName(),
-                        $primaryKey->getStorageName()
-                    )
+                throw DataAbstractionLayerException::inconsistentPrimaryKey(
+                    $command->getEntityName(),
+                    $primaryKey->getStorageName()
                 );
             }
 
@@ -513,12 +527,9 @@ class EntityWriteResultFactory
 
         $referenceField = $parent->getFields()->getByStorageName($fkField->getReferenceField());
         if (!$referenceField) {
-            throw new \RuntimeException(
-                sprintf(
-                    'Can not detect reference field with storage name %s in definition %s',
-                    $fkField->getReferenceField(),
-                    $parent->getEntityName()
-                )
+            throw DataAbstractionLayerException::referenceFieldByStorageNameNotFound(
+                $parent->getEntityName(),
+                $fkField->getReferenceField()
             );
         }
 
@@ -558,9 +569,10 @@ class EntityWriteResultFactory
             }
 
             if (!isset($rawData[$property])) {
-                $required = $definition->getPrimaryKeys()->filter(fn (Field $field) => !$field instanceof ReferenceVersionField && !$field instanceof VersionField);
-
-                throw new IncompletePrimaryKeyException($required->getKeys());
+                throw DataAbstractionLayerException::inconsistentPrimaryKey(
+                    $definition->getEntityName(),
+                    $property
+                );
             }
             if (!$primaryKey instanceof StorageAware) {
                 continue;

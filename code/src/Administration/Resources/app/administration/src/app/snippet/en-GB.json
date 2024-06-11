@@ -9,10 +9,12 @@
       "CONTENT__MISSING_RULE_TYPE_EXCEPTION": "You must choose a type for this rule.",
       "CONTENT__INVALID_CATEGORY_TYPE_AS_ENTRY_POINT": "The type can not be assigned while category is an entry point.",
       "SHOPWARE_INVALID_IP": "Please enter a valid IP address.",
+      "SHOPWARE_INVALID_IP_CIDR": "Please enter a valid IP address or a valid IP-address with CIDR mask.",
       "INVALID_URL": "Please enter a valid url.",
       "INVALID_MAIL": "Please enter a valid email address.",
       "FRAMEWORK__RATE_LIMIT_EXCEEDED": "Too many requests. Please wait {seconds} seconds before trying again.",
       "DUPLICATED_URL": "This URL is already in use. Please choose another URL.",
+      "DUPLICATED_NAME": "This name is already in use.",
       "CONTENT__MEDIA_EMPTY_FILE": "A valid filename must be provided.",
       "CONTENT__INVALID_CUSTOM_ENTITY_FIELD_TYPE": "Field type cannot be rendered. Please contact your administrator."
     },
@@ -56,6 +58,9 @@
       "noMessage": "Message is not defined",
       "notificationLoadingDataErrorMessage": "Error loading data"
     },
+    "sw-desktop": {
+      "stagingBarText": "The Shop is in staging mode."
+    },
     "notification-center": {
       "title": "Notifications",
       "emptyText": "Nothing going on lately.",
@@ -76,10 +81,6 @@
         "dalIndexing": {
           "message": "All data indexed. | Indexing data.",
           "messageSuccess": "Indexing has finished."
-        },
-        "warmupIndexing": {
-          "message": "Cache warming up. | One page remaining... | Approximately {n} pages remaining...",
-          "messageSuccess": "Cache has been warmed up."
         },
         "productStream": {
           "title": "Indexing dynamic product groups",
@@ -391,13 +392,16 @@
           "message": "Folder \"{mediaName}\" has been moved."
         },
         "errorSingle": {
-          "message": "Error moving \"{mediaName}\"."
+          "message": "Could not move \"{mediaName}\"."
         },
         "successOverall": {
           "message": "Media items have been moved."
         },
         "errorOverall": {
-          "message": "Error moving items."
+          "message": "Could not move items."
+        },
+        "errorFetchNavigation": {
+          "message": "Could not fetch folder navigation."
         }
       }
     },
@@ -490,19 +494,19 @@
       "labelGenerateThumbnails": "Generate thumbnails for this folder",
       "labelThumbnailQuality": "Thumbnail quality",
       "labelThumbnailSize": "Thumbnail size",
-      "labelEditList": "Edit list",
-      "labelStopEdit": "Stop editing",
       "labelKeepProportions": "Keep aspect ratio",
       "notification": {
         "success": {
           "message": "Settings have been saved."
         },
         "error": {
-          "message": "Error while saving settings."
+          "message": "Error while saving settings.",
+          "messageThumbnailSizeExisted": "The thumbnail size already exists."
         }
       },
       "labelDefaultFolder": "Default media location for",
-      "placeholderDefaultFolder": "Select entity..."
+      "placeholderDefaultFolder": "Select entity...",
+      "tooltipCanNotDeleteThumbnailSize": "This thumbnail size cannot be deleted because it is currently in use."
     },
     "sw-media-add-thumbnail-form": {
       "labelMaximumSize": "Maximum size"
@@ -546,7 +550,9 @@
       "enterValidIp": "Please enter a valid IPv4 or IPv6 address",
       "addIpAddress": "Add IP address",
       "knownIps": {
-        "you": "You"
+        "you": "You",
+        "youIPv6Block56": "You and others (same endsite)",
+        "youIPv6Block64": "You and others (home network)"
       }
     },
     "sw-entity-advanced-selection-modal": {
@@ -662,7 +668,6 @@
           "label": "Customer email address",
           "placeholder": "Enter a distinct email address or use \"*\" as a wildcard character..."
         },
-        "isNewCustomerRule": "New customer",
         "lastNameRule": "Customer surname",
         "isCompanyRule": "Commercial customer",
         "cartTaxDisplay": {
@@ -708,6 +713,7 @@
         "orderStatusRule": "Order status",
         "orderCustomFieldRule": "Order with custom field",
         "orderDocumentTypeRule": "Order with document",
+        "orderDocumentTypeSentRule": "Order with sent document",
         "yes": "Yes",
         "no": "No",
         "withTime": "Including timestamp",
@@ -765,7 +771,7 @@
         "lineItemStockRule": "Item available",
         "lineItemActualStockRule": "Item in stock",
         "lineItemProductStates": "Item with product state",
-        "numberOfReviews": "Number of submitted reviews",
+        "numberOfReviews": "Number of approved reviews",
         "paymentMethodRule": "Applied payment method",
         "shippingMethodRule": "Applied shipping method",
         "lineItemGoodsTotalRule": "Total quantity of all products",
@@ -781,7 +787,7 @@
         "lineItemCustomField": {
           "field": {
             "fieldSetSelect": {
-              "placeholder": "Select fieldset..."
+              "placeholder": "Select field set..."
             },
             "customFieldSelect": {
               "placeholder": "Select custom field...",
@@ -800,6 +806,21 @@
       }
     },
     "sw-condition-generic": {
+      "customerDaysSinceLastLogin": {
+        "daysPassed": {
+          "placeholder": "@:sw-product.settingsForm.placeholderTime"
+        }
+      },
+      "customerDaysSinceFirstLogin": {
+        "daysPassed": {
+          "placeholder": "@:sw-product.settingsForm.placeholderTime"
+        }
+      },
+      "customerDaysSinceLastOrder": {
+        "daysPassed": {
+          "placeholder": "@:sw-product.settingsForm.placeholderTime"
+        }
+      },
       "customerEmail": {
         "email": {
           "placeholder": "@:global.sw-condition.condition.emailRule.placeholder"
@@ -850,7 +871,7 @@
         }
       },
       "promotionCodeOfType": {
-        "promotionCodeOfType": {
+        "promotionCodeType": {
           "options": {
             "global": "@:global.sw-condition.condition.promotionCodeOfTypeRule.global",
             "fixed": "@:global.sw-condition.condition.promotionCodeOfTypeRule.fixed",

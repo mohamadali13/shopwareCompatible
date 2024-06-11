@@ -3,41 +3,28 @@
  */
 
 const webpack = require('webpack');
-const webpackMerge = require('webpack-merge');
-const FriendlyErrorsPlugin = require('friendly-errors-webpack-plugin');
+const { merge } = require('webpack-merge');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const AssetsPlugin = require('assets-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const ESLintPlugin = require('eslint-webpack-plugin');
 const TerserPlugin = require('terser-webpack-plugin');
-const OptimizeCSSAssetsPlugin = require('optimize-css-assets-webpack-plugin');
 const WebpackCopyAfterBuildPlugin = require('@shopware-ag/webpack-copy-after-build');
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
 const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin;
-const WebpackDynamicPublicPathPlugin = require('webpack-dynamic-public-path');
 const { CleanWebpackPlugin } = require('clean-webpack-plugin');
 const path = require('path');
 const fs = require('fs');
 const chalk = require('chalk');
-const crypto = require('crypto');
+const WebpackBar = require('webpackbar');
+const { default: InjectPlugin, ENTRY_ORDER } = require('webpack-inject-plugin');
 
 if (process.env.IPV4FIRST) {
     require('dns').setDefaultResultOrder('ipv4first');
 }
 
-/** HACK: OpenSSL 3 does not support md4 anymore,
-* but webpack hardcodes it all over the place: https://github.com/webpack/webpack/issues/13572
-*/
-const cryptoOrigCreateHash = crypto.createHash;
-crypto.createHash = algorithm => cryptoOrigCreateHash(algorithm === 'md4' ? 'sha1' : algorithm);
-
 /* eslint-disable */
-
-const buildOnlyExtensions = process.env.SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS === '1';
-const openBrowserForWatch = process.env.DISABLE_DEVSERVER_OPEN !== '1';
-const useSourceMap = process.env.SHOPWARE_ADMIN_SKIP_SOURCEMAP_GENERATION !== '1';
-
 const flagsPath = path.join(process.env.PROJECT_ROOT, 'var', 'config_js_features.json');
 let featureFlags = {};
 if (fs.existsSync(flagsPath)) {
@@ -46,15 +33,8 @@ if (fs.existsSync(flagsPath)) {
     global.featureFlags = featureFlags;
 }
 
-if (featureFlags?.VUE3) {
-    console.log(chalk.yellow('#########################################'));
-    console.log(chalk.yellow('# Experimental Vue 3 build is activated #'));
-    console.log(chalk.yellow('#########################################'));
-    console.log();
-}
-
 const nodeMajor = process.versions.node.split('.')[0];
-const supportedNodeVersions = ['18', '19', '20'];
+const supportedNodeVersions = ['20', '21', '22'];
 if (!supportedNodeVersions.includes(nodeMajor)) {
     console.log();
     console.log(chalk.red(`@Deprecated: You are using an incompatible Node.js version. Supported versions are ` + supportedNodeVersions.join(', ')));
@@ -65,6 +45,9 @@ console.log(chalk.yellow('# Compiling with Webpack configuration'));
 
 const isDev = process.env.mode === 'development';
 const isProd = process.env.mode !== 'development';
+const buildOnlyExtensions = process.env.SHOPWARE_ADMIN_BUILD_ONLY_EXTENSIONS === '1';
+const openBrowserForWatch = process.env.DISABLE_DEVSERVER_OPEN !== '1';
+const useSourceMap = isDev && process.env.SHOPWARE_ADMIN_SKIP_SOURCEMAP_GENERATION !== '1';
 
 if (isDev) {
     console.log(chalk.yellow('# Development mode is activated \u{1F6E0}'));
@@ -103,6 +86,38 @@ const cssUrlMatcher = (url) => {
     }
 
     return false;
+};
+
+/**
+ * This function generates the loader for the inject plugin.
+ * The loader is necessary to set the correct path for the bundle assets.
+ * The path is dynamically set in the entry file of the bundle.
+ * The import content is base64 encoded instead of generating a separate file
+ * just for the public path setting.
+ *
+ * The reason for this is that our bundles are in separate folders. We get
+ * the information where these files are located from the backend and therefore
+ * can’t define a hard-coded value for their location.
+ * The paths could also contain CDN URLs. To support this we need to set the
+ * webpack public paths dynamically in the runtime. This is needed to load
+ * lazy-loaded files of bundles.
+ *
+ * @dependency https://github.com/adierkens/webpack-inject-plugin/tree/master
+ * @param bundleName
+ * @returns {function(): string}
+ */
+const injectPluginLoaderGenerator = (bundleName) => {
+    return () => {
+        // This code will be executed in the entry file of the bundle
+        // set the webpack public path dynamically for every file in the main window
+        const importContent = btoa(`
+            if (window?.__sw__?.assetPath) {
+                __webpack_public_path__ = window.__sw__.assetPath + '/bundles/${bundleName}/';
+            }
+        `);
+
+        return `import 'data:text/javascript;charset=utf-8;base64,${importContent}';`;
+    }
 };
 
 /**
@@ -198,41 +213,27 @@ console.log();
 const baseConfig = ({ pluginPath, pluginFilepath }) => ({
     mode: isDev ? 'development' : 'production',
     bail: !isDev,
-    stats: {
-        all: false,
-        colors: true,
-        modules: true,
-        maxModules: 0,
-        errors: true,
-        warnings: true,
-        entrypoints: true,
-        timings: true,
-        logging: 'warn',
-    },
+    stats: 'minimal',
 
     performance: {
         hints: false,
     },
 
-    devtool: isDev ? 'eval-source-map' : 'source-map',
+    devtool: useSourceMap ? 'eval-source-map' : false,
 
     optimization: {
-        moduleIds: 'hashed',
-        chunkIds: 'named',
         ...(() => {
             if (isProd) {
                 return {
                     minimizer: [
                         new TerserPlugin({
+                            minify: TerserPlugin.swcMinify,
                             terserOptions: {
-                                warnings: false,
-                                output: 6,
+                                compress: true,
+                                sourceMap: useSourceMap,
                             },
-                            cache: true,
                             parallel: true,
-                            sourceMap: useSourceMap,
                         }),
-                        new OptimizeCSSAssetsPlugin(),
                     ],
                 };
             }
@@ -249,6 +250,11 @@ const baseConfig = ({ pluginPath, pluginFilepath }) => ({
                 extensions: ['.js', '.ts', '.vue', '.json', '.less', '.twig'],
                 alias: {
                     scss: path.join(__dirname, 'src/app/assets/scss'),
+                },
+                // Webpack 5 no longer polyfills Node.js core modules automatically.
+                fallback: {
+                    "path": require.resolve("path-browserify"),
+                    "process": "process/browser",
                 },
             },
         };
@@ -279,7 +285,7 @@ const baseConfig = ({ pluginPath, pluginFilepath }) => ({
             },
             {
                 test: /\.(js|ts|tsx?|vue)$/,
-                loader: 'babel-loader',
+                loader: 'swc-loader',
                 include: [
                     /**
                      * Only needed for unit tests in plugins. It throws an ESLint error
@@ -290,20 +296,18 @@ const baseConfig = ({ pluginPath, pluginFilepath }) => ({
                     path.resolve(pluginPath, '..', 'test'),
                 ],
                 options: {
-                    compact: true,
-                    cacheDirectory: true,
-                    presets: [
-                        [
-                            '@babel/preset-env', {
-                                modules: false,
-                                targets: {
-                                    browsers: ['last 2 versions', 'edge >= 17'],
-                                },
-                            },
-                        ],
-                        '@babel/preset-typescript'
-                    ],
+                    jsc: {
+                        parser: {
+                            syntax: 'typescript',
+                        },
+                        target: 'es2022',
+                    },
                 },
+            },
+            {
+                test: /\.mjs$/,
+                include: /node_modules/,
+                type: "javascript/auto"
             },
             {
                 test: /\.(png|jpe?g|gif|svg)(\?.*)?$/,
@@ -326,7 +330,7 @@ const baseConfig = ({ pluginPath, pluginFilepath }) => ({
                 test: /\.(woff2?|eot|ttf|otf)(\?.*)?$/,
                 loader: 'file-loader',
                 options: {
-                    name: 'static/fonts/[name].[hash:7].[ext]'
+                    name: 'static/fonts/[name].[contenthash:7].[ext]'
                 },
             },
             {
@@ -517,10 +521,15 @@ const baseConfig = ({ pluginPath, pluginFilepath }) => ({
     },
 
     plugins: [
+        new webpack.IgnorePlugin({ resourceRegExp: /^vite\/.*$/gm }),
         new webpack.DefinePlugin({
             'process.env': {
                 NODE_ENV: isDev ? '"development"' : '"production"',
             },
+        }),
+        // make process polyfill available in runtime
+        new webpack.ProvidePlugin({
+            process: 'process/browser',
         }),
 
         ...(() => {
@@ -568,14 +577,15 @@ const baseConfig = ({ pluginPath, pluginFilepath }) => ({
 const coreConfig = {
     ...(() => {
         if (isDev) {
-            const disableDevServerInlineMode = process.env.DISABLE_DEV_SERVER_INLINE_MODE === '1' || process.env.DISABLE_DEV_SERVER_INLINE_MODE === 'true';
-
             return {
                 devServer: {
-                    inline: disableDevServerInlineMode ? false : true,
+                    client: {
+                        overlay: false,
+                        progress: true,
+                    },
                     host: process.env.HOST,
                     port: process.env.PORT,
-                    disableHostCheck: true,
+                    allowedHosts: "all",
                     ...(() => {
                         const config = {};
 
@@ -597,21 +607,29 @@ const coreConfig = {
                             secure: false,
                         },
                     },
-                    contentBase: [
-                        // 3 because it need to match the contentBasePublicPath index
-                        path.resolve(__dirname, 'static'),
-                        path.resolve(__dirname, 'static'),
-                        path.resolve(__dirname, 'static'),
+                    static: [
+                        {
+                            directory: path.resolve(__dirname, 'static'),
+                            publicPath: '/static',
+                        },
+                        {
+                            directory: path.resolve(__dirname, 'static'),
+                            publicPath: '/administration/static',
+                        },
+                        {
+                            directory: path.resolve(__dirname, 'static'),
+                            publicPath: '/bundles/administration/static',
+                        },
                         // the dev server is allowed to access the plugin folders
-                        ...pluginEntries.map(plugin => path.resolve(plugin.path, '../static')),
+                        ...pluginEntries.map((plugin) => {
+                            return {
+                                directory: path.resolve(plugin.path, '../static'),
+                                publicPath: `/bundles/${plugin.technicalFolderName.replace(/-/g, '')}/static`,
+                            };
+                        }),
                     ],
-                    contentBasePublicPath: [
-                        '/static',
-                        '/administration/static',
-                        '/bundles/administration/static',
-                        // the dev server is allowed to access the plugin folders
-                        ...pluginEntries.map((plugin) => `/bundles/${plugin.technicalFolderName.replace(/-/g, '')}/static`),
-                    ],
+                    // HMR is not working with multi-compiler-mode
+                    hot: false,
                 },
                 node: {
                     __filename: true,
@@ -625,12 +643,10 @@ const coreConfig = {
     },
 
     ...(() => {
-        const vueAlias = featureFlags.VUE3 ? '@vue/compat/dist/vue.esm-bundler.js' : 'vue/dist/vue.esm.js';
-
         return {
             resolve: {
                 alias: {
-                    vue$: vueAlias,
+                    vue$: '@vue/compat/dist/vue.esm-bundler.js',
                     src: path.join(__dirname, 'src'),
                     assets: path.join(__dirname, 'static'),
                 },
@@ -647,8 +663,8 @@ const coreConfig = {
         filename: isDev ? 'bundles/administration/static/js/[name].js' : 'static/js/[name].js',
         chunkFilename: isDev ? 'bundles/administration/static/js/[chunkhash].js' : 'static/js/[chunkhash].js',
         publicPath: isDev ? '/' : `bundles/administration/`,
-        globalObject: 'this',
-        jsonpFunction: `webpackJsonpAdministration`
+        globalObject: 'window',
+        chunkLoadingGlobal: 'webpackJsonpAdministration',
     },
 
     optimization: {
@@ -673,10 +689,13 @@ const coreConfig = {
             filename: isDev ? 'bundles/administration/static/css/[name].css' : 'static/css/[name].css',
             chunkFilename: isDev ? 'bundles/administration/static/css/[chunkhash].css' : 'static/css/[chunkhash].css',
         }),
+        new WebpackBar({
+            name: 'Shopware 6 Admin',
+            color: '#118cff',
+        }),
 
         ...(() => {
-            // TODO: NEXT-18182 remove featureFlag condition
-            if (featureFlags.VUE3 || isProd || process.env.DISABLE_ADMIN_COMPILATION_TYPECHECK) {
+            if (isProd || process.env.DISABLE_ADMIN_COMPILATION_TYPECHECK) {
                 return [];
             }
 
@@ -686,11 +705,6 @@ const coreConfig = {
                     typescript: {
                         mode: 'readonly',
                     },
-                    logger: {
-                        infrastructure: 'console',
-                        issues: 'console',
-                        devServer: false,
-                    }
                 }),
             ];
         })(),
@@ -711,17 +725,12 @@ const coreConfig = {
                         ],
                     }),
                     // needed to set paths for chunks dynamically (e.g. needed for S3 asset bucket)
-                    new WebpackDynamicPublicPathPlugin({
-                        externalPublicPath: `(window.__sw__.assetPath + '/bundles/administration/')`,
-                    }),
+                    new InjectPlugin(injectPluginLoaderGenerator('administration'), { entryOrder: ENTRY_ORDER.First }),
                 ];
             }
 
             if (isDev) {
                 return [
-                    // https://github.com/glenjamin/webpack-hot-middleware#installation--usage
-                    new webpack.HotModuleReplacementPlugin(),
-                    new webpack.NoEmitOnErrorsPlugin(),
                     // https://github.com/ampedandwired/html-webpack-plugin
                     new HtmlWebpackPlugin({
                         filename: 'index.html',
@@ -731,7 +740,6 @@ const coreConfig = {
                         },
                         inject: false,
                     }),
-                    new FriendlyErrorsPlugin(),
                 ];
             }
         })()
@@ -771,7 +779,7 @@ const configsForPlugins = pluginEntries.map((plugin) => {
     const htmlFilePath = path.resolve(plugin.path, '../index.html');
     const hasHtmlFile = fs.existsSync(htmlFilePath);
 
-    return webpackMerge([
+    return merge([
         createdBaseConfig,
         {
             entry: {
@@ -794,12 +802,12 @@ const configsForPlugins = pluginEntries.map((plugin) => {
                     // to be able to access all files in multi-compiler-mode
                     ? path.resolve(__dirname, `v_dist/bundles/${plugin.technicalFolderName}/administration/`)
                     : path.resolve(plugin.path, '../../../public/'),
-                publicPath: isDev ? `/bundles/${plugin.technicalFolderName}/administration/` : `/bundles/${plugin.technicalFolderName}/`,
+                publicPath: isDev ? `/bundles/${plugin.technicalFolderName}/administration/` : `bundles/${plugin.technicalFolderName}/`,
                 // filenames aren´t in static folder when using watcher to match the build environment
                 filename: isDev ? 'js/[name].js' : 'static/js/[name].js',
-                chunkFilename: isDev ? 'js/[name].js' : 'static/js/[name].js',
-                globalObject: 'this',
-                jsonpFunction: `webpackJsonpPlugin${plugin.technicalName}`
+                chunkFilename: isDev ? 'js/[chunkhash].js' : 'static/js/[chunkhash].js',
+                globalObject: 'window',
+                chunkLoadingGlobal: `webpackJsonpPlugin${plugin.technicalName}`
             },
 
             plugins: [
@@ -821,14 +829,21 @@ const configsForPlugins = pluginEntries.map((plugin) => {
                     },
                 }),
 
+                new WebpackBar({
+                    name: plugin.technicalName,
+                    color: 'green',
+                }),
+
                 ...(() => {
-                    if (isProd && !hasHtmlFile) {
+                    if (isProd) {
                         return [
                             // needed to set paths for chunks dynamically (e.g. needed for S3 asset bucket)
-                            new WebpackDynamicPublicPathPlugin({
-                                externalPublicPath: `(window.__sw__.assetPath + '/bundles/${plugin.technicalFolderName}/')`,
-                            }),
+                            new InjectPlugin(injectPluginLoaderGenerator(plugin.technicalFolderName), { entryOrder: ENTRY_ORDER.First }),
+                        ];
+                    }
 
+                    if (isDev) {
+                        return [
                             new ESLintPlugin({
                                 context: path.resolve(plugin.path),
                                 useEslintrc: false,
@@ -884,7 +899,7 @@ const configsForPlugins = pluginEntries.map((plugin) => {
                                             (data, cb) => {
                                                 // replace "/administration/static/" with "/administration/"
                                                 data.html = data.html.replace(
-                                                    /\/administration\/static\//,
+                                                    /\/administration\/static\//g,
                                                     '/administration/',
                                                 )
 
@@ -898,7 +913,8 @@ const configsForPlugins = pluginEntries.map((plugin) => {
                             new HtmlWebpackPlugin({
                                 filename: isDev ? '../administration/index.html' : 'administration/index.html',
                                 template: htmlFilePath,
-                                publicPath: isDev ? `/bundles/${plugin.technicalFolderName}/administration/` : `/bundles/${plugin.technicalFolderName}/administration/`,
+                                publicPath: isDev ? `/bundles/${plugin.technicalFolderName}/administration/` : `bundles/${plugin.technicalFolderName}/administration/`,
+                                base: isDev ? undefined : '__$ASSET_BASE_PATH$__', // This is replaced by symfony to fix sub folder and cloud installations
                             })
                         ];
                     }
@@ -914,7 +930,7 @@ const configsForPlugins = pluginEntries.map((plugin) => {
 /**
  * We create the final core configuration by merging the baseConfig with the coreConfig
  */
-const mergedCoreConfig = webpackMerge([baseConfig({
+const mergedCoreConfig = merge([baseConfig({
     pluginPath: path.resolve(__dirname, 'src'),
     pluginFilepath: path.resolve(__dirname, 'src/app/main.js'),
 }), coreConfig]);

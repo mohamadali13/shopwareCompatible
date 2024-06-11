@@ -49,17 +49,11 @@ class DefinitionValidator
         'product.wishlists',
         'order.billingAddress',
         'product_search_config.excludedTerms',
-        'integration.writeAccess',
         'media.metaDataRaw',
         'product.sortedProperties',
         'product.cheapestPriceContainer',
         'product.cheapest_price',
         'product.cheapest_price_accessor',
-
-        // @deprecated tag:v6.6.0 - Deprecated columns
-        'shipping_method_price.currency',
-        'payment_method.shortName',
-        'state_machine_history.entityId',
     ];
 
     private const PLURAL_EXCEPTIONS = [
@@ -104,6 +98,7 @@ class DefinitionValidator
         'payment_token',
         'refresh_token',
         'usage_data_entity_deletion',
+        'one_time_tasks',
     ];
 
     private const IGNORED_ENTITY_PROPERTIES = [
@@ -174,6 +169,10 @@ class DefinitionValidator
             if (preg_match('/.*\\\\Test|s\\\\.*/', $definitionClass) || preg_match('/.*ComposerChild\\\\.*/', $definitionClass)) {
                 continue;
             }
+            if (\in_array($definitionClass, [AttributeEntityDefinition::class, AttributeTranslationDefinition::class, AttributeMappingDefinition::class], true)) {
+                continue;
+            }
+
             $violations[$definitionClass] = [];
 
             $violations = array_merge_recursive($violations, $this->validateSchema($definition));

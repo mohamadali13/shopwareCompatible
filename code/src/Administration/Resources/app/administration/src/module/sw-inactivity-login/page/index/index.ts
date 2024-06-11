@@ -1,5 +1,4 @@
 import './sw-inactivity-login.scss';
-import type { MetaInfo } from 'vue-meta';
 import template from './sw-inactivity-login.html.twig';
 
 const { Component } = Shopware;
@@ -51,16 +50,14 @@ Component.register('sw-inactivity-login', {
         },
     },
 
-    metaInfo(): MetaInfo {
+    metaInfo() {
         return {
             title: this.title,
         };
     },
 
     created() {
-        if (this.feature.isActive('VUE3')) {
-            window.processingInactivityLogout = false;
-        }
+        window.processingInactivityLogout = false;
 
         const lastKnownUser = sessionStorage.getItem('lastKnownUser');
 
@@ -85,9 +82,7 @@ Component.register('sw-inactivity-login', {
             this.forwardLogin();
 
             // Vue router v4 behaves differently than v3 and does not require a reload
-            if (this.feature.isActive('VUE3')) {
-                return;
-            }
+            return;
 
             window.location.reload();
         };
@@ -136,13 +131,6 @@ Component.register('sw-inactivity-login', {
             this.forwardLogin();
 
             this.sessionChannel?.postMessage({ inactive: false });
-
-            // Vue router v4 behaves differently than v3 and does not require a reload
-            if (this.feature.isActive('VUE3')) {
-                return;
-            }
-
-            window.location.reload();
         },
 
         handleRememberMe() {

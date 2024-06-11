@@ -8,7 +8,7 @@
             {% block cms_form_newsletter_select_action %}
                 <div class="form-group col-12">
                     <label class="form-label" for="newsletterAction">
-                        {{ "newsletter.labelActionSelect"|trans }} {{ "general.required"|trans }}
+                        {{ 'newsletter.labelActionSelect'|trans }} {{ 'general.required'|trans }}
                     </label>
 
                     <select name="option"
@@ -20,11 +20,11 @@
                             data-form-field-toggle-value="subscribe">
                         <option selected="selected"
                                 value="{{ constant('Shopware\\Storefront\\Controller\\FormController::SUBSCRIBE') }}">
-                            {{ "newsletter.subscribeOption"|trans }}
+                            {{ 'newsletter.subscribeOption'|trans }}
                         </option>
 
                         <option value="{{ constant('Shopware\\Storefront\\Controller\\FormController::UNSUBSCRIBE') }}">
-                            {{ "newsletter.unsubscribeOption"|trans }}
+                            {{ 'newsletter.unsubscribeOption'|trans }}
                         </option>
                     </select>
                 </div>
@@ -36,6 +36,7 @@
                 {% sw_include '@Storefront/storefront/element/cms-element-form/form-components/cms-element-form-input.html.twig'
                     with {
                     fieldName: 'email',
+                    autocomplete: 'email',
                     type: 'email',
                     required: true,
                     additionalClass: 'col-12',
@@ -59,6 +60,7 @@
                         {% sw_include '@Storefront/storefront/element/cms-element-form/form-components/cms-element-form-input.html.twig'
                             with {
                             fieldName: 'firstName',
+                            autocomplete: 'section-personal given-name',
                             additionalClass: 'col-md-4',
                             label: 'newsletter.labelFirstName',
                             placeholder: 'newsletter.placeholderFirstName'
@@ -70,6 +72,7 @@
                         {% sw_include '@Storefront/storefront/element/cms-element-form/form-components/cms-element-form-input.html.twig'
                             with {
                             fieldName: 'lastName',
+                            autocomplete: 'section-personal family-name',
                             additionalClass: 'col-md-4',
                             label: 'newsletter.labelLastName',
                             placeholder: 'newsletter.placeholderLastName'

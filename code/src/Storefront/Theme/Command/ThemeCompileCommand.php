@@ -41,13 +41,18 @@ class ThemeCompileCommand extends Command
             ->addOption('skip', 's', InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Skip compiling themes for given sales channels ids')
             ->addOption('only-themes', 'O', InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Compile only themes for given theme ids')
             ->addOption('skip-themes', 'S', InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Skip compiling themes for given theme ids')
+            ->addOption('sync', null, InputOption::VALUE_NONE, 'Compile the theme synchronously')
         ;
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $this->io = new SymfonyStyle($input, $output);
-        $context = Context::createDefaultContext();
+        $context = Context::createCLIContext();
+        if ($input->getOption('sync')) {
+            $context->addState(ThemeService::STATE_NO_QUEUE);
+        }
+
         $this->io->writeln('Start theme compilation');
 
         $onlySalesChannel = ((array) $input->getOption('only')) ?: null;

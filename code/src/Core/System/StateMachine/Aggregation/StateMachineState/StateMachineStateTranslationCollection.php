@@ -16,7 +16,7 @@ class StateMachineStateTranslationCollection extends EntityCollection
      */
     public function getLanguageIds(): array
     {
-        return $this->fmap(fn (StateMachineStateTranslationEntity $stateMachineStateTranslation): string => $stateMachineStateTranslation->getLanguageId());
+        return $this->fmap(fn (StateMachineStateTranslationEntity $stateMachineStateTranslation) => $stateMachineStateTranslation->getLanguageId());
     }
 
     public function filterByLanguageId(string $id): self

@@ -9,6 +9,7 @@ use Shopware\Core\Framework\App\Event\AppDeletedEvent;
 use Shopware\Core\Framework\App\Event\AppInstalledEvent;
 use Shopware\Core\Framework\App\Event\AppUpdatedEvent;
 use Shopware\Core\Framework\Log\Package;
+use Shopware\Core\Framework\Update\Event\UpdatePostFinishEvent;
 
 #[Package('core')]
 interface Hookable
@@ -19,16 +20,15 @@ interface Hookable
         AppDeletedEvent::class => AppDeletedEvent::NAME,
         AppInstalledEvent::class => AppInstalledEvent::NAME,
         AppUpdatedEvent::class => AppUpdatedEvent::NAME,
+        UpdatePostFinishEvent::class => UpdatePostFinishEvent::EVENT_NAME,
     ];
 
     public function getName(): string;
 
     /**
-     * @param AppEntity|null $app - @deprecated tag:v6.6.0 parameter $app will be required in v6.6.0.0
-     *
      * @return array<mixed>
      */
-    public function getWebhookPayload(): array;
+    public function getWebhookPayload(?AppEntity $app = null): array;
 
     /**
      * returns if it is allowed to dispatch the event to given app with given permissions

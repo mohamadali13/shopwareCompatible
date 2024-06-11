@@ -13,6 +13,8 @@ use Shopware\Core\Framework\Log\Package;
 #[Package('core')]
 abstract class MigrationStep
 {
+    use AddColumnTrait;
+
     final public const INSTALL_ENVIRONMENT_VARIABLE = 'SHOPWARE_INSTALL';
 
     /**
@@ -28,7 +30,9 @@ abstract class MigrationStep
     /**
      * update destructive changes
      */
-    abstract public function updateDestructive(Connection $connection): void;
+    public function updateDestructive(Connection $connection): void
+    {
+    }
 
     public function removeTrigger(Connection $connection, string $name): void
     {
@@ -144,7 +148,7 @@ abstract class MigrationStep
      * @param array<string, array<string>> $privileges
      *
      * @throws ConnectionException
-     * @throws \Doctrine\DBAL\Exception
+     * @throws Exception
      * @throws \JsonException
      */
     protected function addAdditionalPrivileges(Connection $connection, array $privileges): void
@@ -154,7 +158,6 @@ abstract class MigrationStep
         try {
             $connection->beginTransaction();
 
-            /** @var array<string, mixed> $role */
             foreach ($roles as $role) {
                 $currentPrivileges = \json_decode((string) $role['privileges'], true, 512, \JSON_THROW_ON_ERROR);
                 $newPrivileges = $this->fixRolePrivileges($privileges, $currentPrivileges);

@@ -4,6 +4,11 @@
 
 // eslint-disable-next-line sw-deprecation-rules/private-feature-declarations
 export default () => {
-    const context = require.context('./', false, /(?<!index)(?<!\.spec)(?<!spec\.vue3\.)\.j|ts$/);
+    if (window._features_.ADMIN_VITE) {
+        const context = import.meta.glob('./**/!(*.spec).{j,t}s', { eager: true });
+        return Object.values(context).map(module => module.default);
+    }
+
+    const context = require.context('./', true, /(?<!index)\.(?<!spec\.)(?<!spec\.vue2\.)(js|ts)$/);
     return context.keys().forEach(item => context(item));
 };

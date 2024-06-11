@@ -4,10 +4,9 @@ import './sw-first-run-wizard-welcome.scss';
 const { Criteria } = Shopware.Data;
 
 /**
- * @package services-settings
- * @deprecated tag:v6.6.0 - Will be private
+ * @package checkout
+ * @private
  */
-// eslint-disable-next-line sw-deprecation-rules/private-feature-declarations
 export default {
     template,
 

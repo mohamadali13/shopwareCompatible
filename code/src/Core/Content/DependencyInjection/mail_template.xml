@@ -27,6 +27,7 @@
         <service id="Shopware\Core\Content\Mail\Service\MailSender" public="true">
             <argument type="service" id="mailer.mailer"/>
             <argument type="service" id="Shopware\Core\System\SystemConfig\SystemConfigService"/>
+            <argument>%shopware.mail.max_body_length%</argument>
         </service>
 
         <service id="Shopware\Core\Content\Mail\Service\MailFactory" public="true">
@@ -86,6 +87,8 @@
             <argument type="service" id="document.repository"/>
             <argument type="service" id="Shopware\Core\Checkout\Document\Service\DocumentGenerator"/>
             <argument type="service" id="event_dispatcher"/>
+
+            <deprecated package="shopware/core" version="6.7.0.0">tag:v6.7.0 - The unused %service_id% service will be removed in v6.7.0.0</deprecated>
         </service>
     </services>
 </container>

@@ -27,7 +27,6 @@ export default {
         editable: {
             type: Boolean,
             required: false,
-            // TODO: Boolean props should only be opt in and therefore default to false
             // eslint-disable-next-line vue/no-boolean-default
             default: true,
         },
@@ -265,12 +264,8 @@ export default {
             Object.values(this.selectedItems).forEach((item) => {
                 if (item.isNew()) {
                     const itemIndex = this.order.lineItems.findIndex(lineItem => item.id === lineItem?.id);
-                    if (this.feature.isActive('VUE3')) {
-                        this.order.lineItems.splice(itemIndex, 1);
-                        return;
-                    }
+                    this.order.lineItems.splice(itemIndex, 1);
 
-                    this.$delete(this.order.lineItems, itemIndex);
                     return;
                 }
 
@@ -292,11 +287,8 @@ export default {
 
         onDeleteItem(item, itemIndex) {
             if (item.isNew()) {
-                if (this.feature.isActive('VUE3')) {
-                    this.order.lineItems.splice(itemIndex, 1);
-                    return;
-                }
-                this.$delete(this.order.lineItems, itemIndex);
+                this.order.lineItems.splice(itemIndex, 1);
+
                 return;
             }
 
@@ -335,6 +327,10 @@ export default {
 
         isPromotionItem(item) {
             return item.type === this.lineItemTypes.PROMOTION;
+        },
+
+        isContainerItem(item) {
+            return item.type === this.lineItemTypes.CONTAINER;
         },
 
         getMinItemPrice(id) {

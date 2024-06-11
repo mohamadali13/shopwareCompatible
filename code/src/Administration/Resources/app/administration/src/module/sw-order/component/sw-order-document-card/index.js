@@ -99,13 +99,9 @@ export default {
         documentModal() {
             const subComponentName = this.currentDocumentType.technicalName.replace(/_/g, '-');
 
-            if (this.feature.isActive('VUE3')) {
-                if (
-                    `sw-order-document-settings-${subComponentName}-modal` in getCurrentInstance().appContext.components
-                ) {
-                    return `sw-order-document-settings-${subComponentName}-modal`;
-                }
-            } else if (this.$options.components[`sw-order-document-settings-${subComponentName}-modal`]) {
+            if (
+                `sw-order-document-settings-${subComponentName}-modal` in getCurrentInstance().appContext.components
+            ) {
                 return `sw-order-document-settings-${subComponentName}-modal`;
             }
 

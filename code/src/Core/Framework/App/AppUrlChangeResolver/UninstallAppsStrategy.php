@@ -13,7 +13,7 @@ use Shopware\Core\Framework\Plugin\Exception\DecorationPatternException;
 use Shopware\Storefront\Theme\ThemeAppLifecycleHandler;
 
 /**
- * @internal only for use by the app-system, will be considered internal from v6.4.0 onward
+ * @internal only for use by the app-system
  *
  * Resolver used when apps should be uninstalled
  * and the shopId should be regenerated, meaning the old shops and old apps work like before
@@ -24,6 +24,9 @@ class UninstallAppsStrategy extends AbstractAppUrlChangeStrategy
 {
     final public const STRATEGY_NAME = 'uninstall-apps';
 
+    /**
+     * @param EntityRepository<AppCollection> $appRepository
+     */
     public function __construct(
         private readonly EntityRepository $appRepository,
         private readonly ShopIdProvider $shopIdProvider,
@@ -51,10 +54,7 @@ class UninstallAppsStrategy extends AbstractAppUrlChangeStrategy
     {
         $this->shopIdProvider->deleteShopId();
 
-        /** @var AppCollection $apps */
-        $apps = $this->appRepository->search(new Criteria(), $context)->getEntities();
-
-        foreach ($apps as $app) {
+        foreach ($this->appRepository->search(new Criteria(), $context)->getEntities() as $app) {
             // Delete app manually, to not inform the app backend about the deactivation
             // as the app is still running in the old shop with the same shopId
             if ($this->themeLifecycleHandler) {

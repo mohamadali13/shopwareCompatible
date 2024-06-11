@@ -107,8 +107,8 @@ export default {
             }
 
             const module = this.moduleFactory.getModuleByEntityName(defaultFolder.entity);
-            this.iconConfig.name = module.manifest.icon;
-            this.iconConfig.color = module.manifest.color;
+            this.iconConfig.name = module?.manifest?.icon ?? '';
+            this.iconConfig.color = module?.manifest?.color ?? '#000000';
         },
 
         async onChangeName(updatedName, item, endInlineEdit) {
@@ -136,12 +136,9 @@ export default {
 
         onBlur(event, item, endInlineEdit) {
             const input = event.target.value;
-            if (input !== item.name) {
-                return;
-            }
 
-            if (!input || !input.trim()) {
-                this.rejectRenaming(item, 'empty-name', endInlineEdit);
+            if (input !== item.name) {
+                this.onChangeName(input, item, endInlineEdit);
                 return;
             }
 

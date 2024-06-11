@@ -45,7 +45,7 @@ describe("SpatialObjectLoaderUtil", () => {
                 setDecoderPath: jest.fn()
             }
         };
-        window.threeJsAddons.DRACOLibPath = `three-js/examples/jsm/libs/draco/`;
+        window.threeJsAddons.DRACOLibPath = `three/examples/jsm/libs/draco/`;
         SpatialObjectLoaderUtilObject = new SpatialObjectLoaderUtil();
     });
 

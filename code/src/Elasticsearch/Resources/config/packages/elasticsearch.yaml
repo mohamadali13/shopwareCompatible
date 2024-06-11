@@ -8,6 +8,7 @@ elasticsearch:
     search:
         timeout: 5s
         term_max_length: 300
+        search_type: "query_then_fetch"
     administration:
         hosts: "%env(string:ADMIN_OPENSEARCH_URL)%"
         enabled: "%env(bool:SHOPWARE_ADMIN_ES_ENABLED)%"
@@ -16,12 +17,14 @@ elasticsearch:
         search:
             timeout: 5s
             term_max_length: 300
+            search_type: "query_then_fetch"
         index_settings:
             number_of_shards: 3
             number_of_replicas: 3
             'mapping.total_fields.limit': 50000
             'mapping.nested_fields.limit': 500
             'mapping.nested_objects.limit': 1000000
+            max_result_window: 10000
         analysis:
             normalizer:
                 sw_lowercase_normalizer:
@@ -47,6 +50,7 @@ elasticsearch:
         'mapping.total_fields.limit': 50000
         'mapping.nested_fields.limit': 500
         'mapping.nested_objects.limit': 1000000
+        max_result_window: 10000
     analysis:
         normalizer:
             sw_lowercase_normalizer:

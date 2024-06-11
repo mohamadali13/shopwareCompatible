@@ -15,7 +15,7 @@ use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 /**
  * @internal
  */
-#[Package('business-ops')]
+#[Package('services-settings')]
 class ProductReviewSubscriber implements EventSubscriberInterface
 {
     /**
@@ -41,7 +41,7 @@ class ProductReviewSubscriber implements EventSubscriberInterface
                 continue;
             }
 
-            if ($command->getDefinition()->getEntityName() !== ProductReviewDefinition::ENTITY_NAME) {
+            if ($command->getEntityName() !== ProductReviewDefinition::ENTITY_NAME) {
                 continue;
             }
 

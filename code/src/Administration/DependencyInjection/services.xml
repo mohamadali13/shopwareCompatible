@@ -37,6 +37,7 @@
             <argument type="service" id="Shopware\Core\Framework\DataAbstractionLayer\DefinitionInstanceRegistry"/>
             <argument type="service" id="parameter_bag"/>
             <argument type="service" id="Shopware\Core\System\SystemConfig\SystemConfigService"/>
+            <argument type="service" id="shopware.filesystem.asset"/>
 
             <call method="setContainer">
                 <argument type="service" id="service_container"/>
@@ -107,6 +108,13 @@
 
         <service id="Shopware\Administration\Service\AdminSearcher">
             <argument type="service" id="Shopware\Core\Framework\DataAbstractionLayer\DefinitionInstanceRegistry"/>
+        </service>
+
+        <service id="Shopware\Administration\Framework\Routing\NotFound\AdministrationNotFoundSubscriber">
+            <argument>%shopware_administration.path_name%</argument>
+            <argument type="service" id="Symfony\Bundle\FrameworkBundle\Controller\TemplateController" />
+
+            <tag name="kernel.event_subscriber"/>
         </service>
 
         <service id="Shopware\Administration\Framework\Routing\AdministrationRouteScope">

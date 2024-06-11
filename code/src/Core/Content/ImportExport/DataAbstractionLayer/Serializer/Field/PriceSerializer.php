@@ -108,11 +108,9 @@ class PriceSerializer extends FieldSerializer
     }
 
     /**
-     * @deprecated tag:v6.6.0 - reason:visibility-change - Will be private in future
-     *
      * @param array<string, mixed> $price
      */
-    public function isValidPrice(array $price): bool
+    private function isValidPrice(array $price): bool
     {
         return filter_var($price['net'] ?? null, \FILTER_VALIDATE_FLOAT) !== false
             && filter_var($price['gross'] ?? null, \FILTER_VALIDATE_FLOAT) !== false;

@@ -92,7 +92,7 @@ class ProductStreamIndexer extends EntityIndexer
         );
 
         $filters = FetchModeHelper::group($filters);
-
+        /** @var array<string, array<string, array<string, mixed>>> $filters */
         $update = new RetryableQuery(
             $this->connection,
             $this->connection->prepare('UPDATE product_stream SET api_filter = :serialized, invalid = :invalid WHERE id = :id')
@@ -154,9 +154,9 @@ class ProductStreamIndexer extends EntityIndexer
     }
 
     /**
-     * @param array<string, array<string, mixed>> $entities
+     * @param list<array<string, mixed>> $entities
      *
-     * @return array<int, array<string, mixed>>
+     * @return list<array<string, mixed>>
      */
     private function buildNested(array $entities, ?string $parentId): array
     {

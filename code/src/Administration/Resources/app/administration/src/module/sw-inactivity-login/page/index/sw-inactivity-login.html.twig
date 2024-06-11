@@ -7,11 +7,7 @@
         :closable="false"
     >
         <sw-password-field
-            {% if VUE3 %}
             v-model:value="password"
-            {% else %}
-            v-model="password"
-            {% endif %}
             v-autofocus
             :label="$tc('sw-login.index.labelPassword')"
             :disabled="isLoading"
@@ -20,11 +16,7 @@
         />
 
         <sw-checkbox-field
-            {% if VUE3 %}
             v-model:value="rememberMe"
-            {% else %}
-            v-model="rememberMe"
-            {% endif %}
             :label="$tc('sw-login.index.labelKeepLoggedIn')"
         />
 

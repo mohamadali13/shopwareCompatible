@@ -28,7 +28,7 @@ export async function loadThreeJs(): Promise<void> {
     });
 
     if (!window.threeJs) {
-        window.threeJs = await import(/* webpackIgnore: true */`${window.themeAssetsPublicPath}js/three-js/build/three.module.min.js`);
+        window.threeJs = await import('three');
     }
 
     if (!window.threeJsAddons) {
@@ -36,32 +36,32 @@ export async function loadThreeJs(): Promise<void> {
     }
 
     if (!window.threeJsAddons?.OrbitControls) {
-        const { OrbitControls } = await import(/* webpackIgnore: true */`${window.themeAssetsPublicPath}js/three-js/examples/jsm/controls/OrbitControls.js`);
+        const { OrbitControls } = await import('three/examples/jsm/controls/OrbitControls.js');
         window.threeJsAddons.OrbitControls = OrbitControls;
     }
 
     if (!window.threeJsAddons?.USDZExporter) {
-        const { USDZExporter } = await import(/* webpackIgnore: true */`${window.themeAssetsPublicPath}js/three-js/examples/jsm/exporters/USDZExporter.js`);
+        const { USDZExporter } = await import('three/examples/jsm/exporters/USDZExporter.js');
         window.threeJsAddons.USDZExporter = USDZExporter;
     }
 
     if (!window.threeJsAddons?.XREstimatedLight) {
-        const { XREstimatedLight } = await import(/* webpackIgnore: true */`${window.themeAssetsPublicPath}js/three-js/examples/jsm/webxr/XREstimatedLight.js`);
+        const { XREstimatedLight } = await import('three/examples/jsm/webxr/XREstimatedLight.js');
         window.threeJsAddons.XREstimatedLight = XREstimatedLight;
     }
 
     if (!window.threeJsAddons?.GLTFLoader) {
-        const { GLTFLoader } = await import(/* webpackIgnore: true */`${window.themeAssetsPublicPath}js/three-js/examples/jsm/loaders/GLTFLoader.js`);
+        const { GLTFLoader } = await import('three/examples/jsm/loaders/GLTFLoader.js');
         window.threeJsAddons.GLTFLoader = GLTFLoader;
     }
 
     if (!window.threeJsAddons?.DRACOLoader) {
-        const { DRACOLoader } = await import(/* webpackIgnore: true */`${window.themeAssetsPublicPath}js/three-js/examples/jsm/loaders/DRACOLoader.js`);
+        const { DRACOLoader } = await import('three/examples/jsm/loaders/DRACOLoader.js');
         window.threeJsAddons.DRACOLoader = DRACOLoader;
     }
 
     if (!window.threeJsAddons?.DRACOLibPath) {
-        window.threeJsAddons.DRACOLibPath = `${window.themeAssetsPublicPath}js/three-js/examples/jsm/libs/draco/`;
+        window.threeJsAddons.DRACOLibPath = 'three/examples/jsm/libs/draco/';
     }
 
     window.loadThreeJsUtil.promiseResolve();

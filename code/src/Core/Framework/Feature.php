@@ -4,11 +4,12 @@ namespace Shopware\Core\Framework;
 
 use PHPUnit\Framework\TestCase;
 use Shopware\Core\DevOps\Environment\EnvironmentHelper;
+use Shopware\Core\Framework\Feature\FeatureException;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Script\Debugging\ScriptTraces;
 
 /**
- * @phpstan-type FeatureFlagConfig array{name?: string, default?: boolean, major?: boolean, description?: string}
+ * @phpstan-type FeatureFlagConfig array{name?: string, default?: boolean, major?: boolean, description?: string, active?: bool, static?: bool}
  */
 #[Package('core')]
 class Feature
@@ -76,6 +77,18 @@ class Feature
         return $result;
     }
 
+    /**
+     * Determines weather a feature is active or not.
+     *
+     * A feature is either active by being in the environment (specified in the .env file for example)
+     * or by matching a FEATURE_ALL mode.
+     *
+     * With FEATURE_ALL you can activate either all minor or all major features.
+     * FEATURE_ALL=1, FEATURE_ALL=minor or any other truthy values except 'false' equals minor
+     * FEATURE_ALL=major puts it into major mode
+     *
+     * The specific feature configuration in the environment is always the highest priority, no matter the FEATURE_ALL configuration.
+     */
     public static function isActive(string $feature): bool
     {
         $env = EnvironmentHelper::getVariable('APP_ENV', 'prod');
@@ -88,16 +101,33 @@ class Feature
             trigger_error('Unknown feature "' . $feature . '"', \E_USER_WARNING);
         }
 
+        // Specific configurations are higher priority then FEATURE_ALL
+        if (self::featureInEnv($feature)) {
+            return self::getFeatureInEnv($feature);
+        }
+
         $featureAll = EnvironmentHelper::getVariable('FEATURE_ALL', '');
+
+        // If FEATURE_ALL has any truthy value
         if (self::isTrue((string) $featureAll) && (self::$registeredFeatures === [] || \array_key_exists($feature, self::$registeredFeatures))) {
-            if ($featureAll === Feature::ALL_MAJOR) {
-                return true;
+            // If feature is not major and is have set active, return the active state
+            if (!self::getConfiguration($feature, 'major') && self::hasConfiguration($feature, 'active')) {
+                return self::getConfiguration($feature, 'active');
             }
 
-            // return true if it's registered and not a major feature
-            if (isset(self::$registeredFeatures[$feature]) && (self::$registeredFeatures[$feature]['major'] ?? false) === false) {
+            // Should only enable major flags
+            if ($featureAll === Feature::ALL_MAJOR) {
+                return self::getConfiguration($feature, 'major');
+            }
+
+            // Enable all minor flags
+            if (!self::getConfiguration($feature, 'major')) {
                 return true;
             }
+        }
+
+        if (self::hasConfiguration($feature, 'active')) {
+            return self::getConfiguration($feature, 'active');
         }
 
         if (!EnvironmentHelper::hasVariable($feature) && !EnvironmentHelper::hasVariable(\strtolower($feature))) {
@@ -112,6 +142,17 @@ class Feature
     public static function ifActive(string $flagName, \Closure $closure): void
     {
         self::isActive($flagName) && $closure();
+    }
+
+    public static function setActive(string $feature, bool $active): void
+    {
+        $feature = self::normalizeName($feature);
+
+        if (!isset(self::$registeredFeatures[$feature])) {
+            throw FeatureException::featureNotRegistered($feature);
+        }
+
+        self::$registeredFeatures[$feature]['active'] = $active;
     }
 
     public static function ifNotActive(string $flagName, \Closure $closure): void
@@ -179,7 +220,7 @@ class Feature
     public static function throwException(string $flag, string $message, bool $state = true): void
     {
         if (self::isActive($flag) === $state || (self::$registeredFeatures !== [] && !self::has($flag))) {
-            throw new \RuntimeException($message);
+            throw FeatureException::error($message);
         }
 
         if (\PHP_SAPI !== 'cli') {
@@ -190,7 +231,7 @@ class Feature
     public static function triggerDeprecationOrThrow(string $majorFlag, string $message): void
     {
         if (self::isActive($majorFlag) || (self::$registeredFeatures !== [] && !self::has($majorFlag))) {
-            throw new \RuntimeException('Tried to access deprecated functionality: ' . $message);
+            throw FeatureException::error('Tried to access deprecated functionality: ' . $message);
         }
 
         if (empty(self::$silent[$majorFlag])) {
@@ -204,10 +245,14 @@ class Feature
 
     public static function deprecatedMethodMessage(string $class, string $method, string $majorVersion, ?string $replacement = null): string
     {
+        $fullQualifiedMethodName = sprintf('%s::%s', $class, $method);
+        if (str_contains($method, '::')) {
+            $fullQualifiedMethodName = $method;
+        }
+
         $message = \sprintf(
-            'Method "%s::%s()" is deprecated and will be removed in %s.',
-            $class,
-            $method,
+            'Method "%s()" is deprecated and will be removed in %s.',
+            $fullQualifiedMethodName,
             $majorVersion
         );
 
@@ -329,5 +374,37 @@ class Feature
     private static function denormalize(string $name): string
     {
         return \strtolower(\str_replace(['_'], '.', $name));
+    }
+
+    private static function hasConfiguration(string $feature, string $key): bool
+    {
+        return \array_key_exists($feature, self::$registeredFeatures) && \array_key_exists($key, self::$registeredFeatures[$feature]);
+    }
+
+    private static function getConfiguration(string $feature, string $key): bool
+    {
+        if (!self::hasConfiguration($feature, $key)) {
+            return false;
+        }
+
+        return (bool) (self::$registeredFeatures[$feature][$key] ?? false);
+    }
+
+    private static function featureInEnv(string $feature): bool
+    {
+        return EnvironmentHelper::hasVariable($feature) || EnvironmentHelper::hasVariable(\strtolower($feature));
+    }
+
+    private static function getFeatureInEnv(string $feature): bool
+    {
+        if (EnvironmentHelper::hasVariable($feature)) {
+            return self::isTrue((string) EnvironmentHelper::getVariable($feature));
+        }
+
+        if (EnvironmentHelper::hasVariable(\strtolower($feature))) {
+            return self::isTrue((string) EnvironmentHelper::getVariable(\strtolower($feature)));
+        }
+
+        return false;
     }
 }

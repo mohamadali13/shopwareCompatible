@@ -2,13 +2,12 @@
 
 namespace Shopware\Storefront\Page\Checkout\Cart;
 
-use Shopware\Core\Checkout\Payment\PaymentMethodCollection;
-use Shopware\Core\Checkout\Payment\SalesChannel\AbstractPaymentMethodRoute;
-use Shopware\Core\Checkout\Shipping\SalesChannel\AbstractShippingMethodRoute;
-use Shopware\Core\Checkout\Shipping\ShippingMethodCollection;
+use Shopware\Core\Checkout\Gateway\SalesChannel\AbstractCheckoutGatewayRoute;
 use Shopware\Core\Content\Category\Exception\CategoryNotFoundException;
+use Shopware\Core\Framework\Adapter\Translation\AbstractTranslator;
 use Shopware\Core\Framework\DataAbstractionLayer\Exception\InconsistentCriteriaIdsException;
 use Shopware\Core\Framework\DataAbstractionLayer\Search\Criteria;
+use Shopware\Core\Framework\Feature;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Routing\RoutingException;
 use Shopware\Core\System\Country\CountryCollection;
@@ -16,6 +15,7 @@ use Shopware\Core\System\Country\SalesChannel\AbstractCountryRoute;
 use Shopware\Core\System\SalesChannel\SalesChannelContext;
 use Shopware\Storefront\Checkout\Cart\SalesChannel\StorefrontCartFacade;
 use Shopware\Storefront\Page\GenericPageLoaderInterface;
+use Shopware\Storefront\Page\MetaInformation;
 use Symfony\Component\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\HttpFoundation\Request;
 
@@ -27,14 +27,16 @@ class CheckoutCartPageLoader
 {
     /**
      * @internal
+     *
+     * @deprecated tag:v6.7.0 - translator will be mandatory from 6.7
      */
     public function __construct(
         private readonly GenericPageLoaderInterface $genericLoader,
         private readonly EventDispatcherInterface $eventDispatcher,
         private readonly StorefrontCartFacade $cartService,
-        private readonly AbstractPaymentMethodRoute $paymentMethodRoute,
-        private readonly AbstractShippingMethodRoute $shippingMethodRoute,
-        private readonly AbstractCountryRoute $countryRoute
+        private readonly AbstractCheckoutGatewayRoute $checkoutGatewayRoute,
+        private readonly AbstractCountryRoute $countryRoute,
+        private readonly ?AbstractTranslator $translator = null
     ) {
     }
 
@@ -48,18 +50,24 @@ class CheckoutCartPageLoader
         $page = $this->genericLoader->load($request, $salesChannelContext);
 
         $page = CheckoutCartPage::createFrom($page);
-
-        if ($page->getMetaInformation()) {
-            $page->getMetaInformation()->setRobots('noindex,follow');
-        }
+        $this->setMetaInformation($page);
 
         $page->setCountries($this->getCountries($salesChannelContext));
 
-        $page->setPaymentMethods($this->getPaymentMethods($salesChannelContext));
+        $cart = $this->cartService->get($salesChannelContext->getToken(), $salesChannelContext);
 
-        $page->setShippingMethods($this->getShippingMethods($salesChannelContext));
+        $gatewayResponse = $this->checkoutGatewayRoute->load($request, $cart, $salesChannelContext);
 
-        $page->setCart($this->cartService->get($salesChannelContext->getToken(), $salesChannelContext));
+        $page->setPaymentMethods($gatewayResponse->getPaymentMethods());
+        $page->setCart($cart);
+
+        $shippingMethods = $gatewayResponse->getShippingMethods();
+
+        if (!$shippingMethods->has($salesChannelContext->getShippingMethod()->getId())) {
+            $shippingMethods->add($salesChannelContext->getShippingMethod());
+        }
+
+        $page->setShippingMethods($shippingMethods);
 
         $this->eventDispatcher->dispatch(
             new CheckoutCartPageLoadedEvent($page, $salesChannelContext, $request)
@@ -68,32 +76,32 @@ class CheckoutCartPageLoader
         return $page;
     }
 
-    private function getPaymentMethods(SalesChannelContext $context): PaymentMethodCollection
+    protected function setMetaInformation(CheckoutCartPage $page): void
     {
-        $request = new Request();
-        $request->query->set('onlyAvailable', '1');
-
-        return $this->paymentMethodRoute->load($request, $context, new Criteria())->getPaymentMethods();
-    }
-
-    private function getShippingMethods(SalesChannelContext $context): ShippingMethodCollection
-    {
-        $request = new Request();
-        $request->query->set('onlyAvailable', '1');
-
-        $shippingMethods = $this->shippingMethodRoute
-            ->load($request, $context, new Criteria())
-            ->getShippingMethods();
-
-        if (!$shippingMethods->has($context->getShippingMethod()->getId())) {
-            $shippingMethods->add($context->getShippingMethod());
+        if ($page->getMetaInformation()) {
+            $page->getMetaInformation()->setRobots('noindex,follow');
         }
 
-        return $shippingMethods;
+        if ($this->translator !== null && $page->getMetaInformation() === null) {
+            $page->setMetaInformation(new MetaInformation());
+        }
+
+        if ($this->translator !== null) {
+            $page->getMetaInformation()?->setMetaTitle(
+                $this->translator->trans('checkout.cartMetaTitle') . ' | ' . $page->getMetaInformation()->getMetaTitle()
+            );
+        }
     }
 
     private function getCountries(SalesChannelContext $context): CountryCollection
     {
+        /**
+         * @deprecated tag:v6.7.0 - remove Feature:isActive on release
+         */
+        if (Feature::isActive('v6.7.0.0') && $context->getCustomer()) {
+            return new CountryCollection();
+        }
+
         $countries = $this->countryRoute->load(new Request(), new Criteria(), $context)->getCountries();
         $countries->sortByPositionAndName();
 

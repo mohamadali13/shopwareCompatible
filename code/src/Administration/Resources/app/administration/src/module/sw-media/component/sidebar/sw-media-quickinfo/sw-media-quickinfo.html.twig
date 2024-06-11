@@ -154,19 +154,11 @@
     >
         <template #content>
             <sw-switch-field
-                {% if VUE3 %}
                 v-model:value="arReady"
-                {% else %}
-                v-model="arReady"
-                {% endif %}
                 :disabled="!editable"
                 :label="$tc('sw-media.sidebar.actions.ar')"
                 class="sw-media-sidebar__quickactions-switch ar-ready-toggle"
-                {% if VUE3 %}
                 @update:value="toggleAR"
-                {% else %}
-                @change="toggleAR"
-                {% endif %}
             />
         </template>
     </sw-media-collapse>
@@ -388,6 +380,7 @@
     <!-- eslint-disable-next-line sw-deprecation-rules/no-twigjs-blocks -->
     {% block sw_media_quickinfo_custom_field_sets %}
     <sw-custom-field-set-renderer
+        :key="item.id"
         :disabled="!acl.can('media.editor')"
         :entity="item"
         variant="media-collapse"

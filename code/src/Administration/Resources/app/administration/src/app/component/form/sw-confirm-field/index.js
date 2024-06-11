@@ -6,8 +6,7 @@ const { Component } = Shopware;
 /**
  * @package admin
  *
- * @deprecated tag:v6.6.0 - Will be private
- * @public
+ * @private
  * @description Text field with additional confirmation buttons inlined in the field itself.
  * @status ready
  * @example-type static
@@ -80,7 +79,7 @@ Component.register('sw-confirm-field', {
         },
     },
 
-    beforeDestroy() {
+    beforeUnmount() {
         this.$emit('remove-error');
     },
 

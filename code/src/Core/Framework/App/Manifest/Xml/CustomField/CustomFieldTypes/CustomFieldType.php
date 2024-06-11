@@ -3,11 +3,14 @@
 namespace Shopware\Core\Framework\App\Manifest\Xml\CustomField\CustomFieldTypes;
 
 use Shopware\Core\Framework\App\Manifest\Xml\XmlElement;
+use Shopware\Core\Framework\App\Manifest\XmlParserUtils;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Util\XmlReader;
 
 /**
  * @internal only for use by the app-system
+ *
+ * @phpstan-type CustomFieldTypeArray array{name: string, config: array{label: array<string, string>, helpText: array<string, string>, customFieldPosition: int, validation?: 'required'}, allowCustomerWrite?: true, allowCartExpose?: true}
  */
 #[Package('core')]
 abstract class CustomFieldType extends XmlElement
@@ -38,7 +41,7 @@ abstract class CustomFieldType extends XmlElement
     protected array $helpText = [];
 
     /**
-     * @return array<string, mixed>
+     * @return CustomFieldTypeArray
      */
     public function toEntityPayload(): array
     {
@@ -63,6 +66,7 @@ abstract class CustomFieldType extends XmlElement
             $entityArray['allowCartExpose'] = true;
         }
 
+        /** @phpstan-ignore-next-line because of the array method, PHPStan could not recognize the array shape correctly */
         return array_merge_recursive($entityArray, $this->toEntityArray());
     }
 
@@ -123,14 +127,7 @@ abstract class CustomFieldType extends XmlElement
             $translatableFields = static::TRANSLATABLE_FIELDS;
         }
 
-        $values = [];
-
-        foreach ($element->attributes as $attribute) {
-            if (!$attribute instanceof \DOMAttr) {
-                continue;
-            }
-            $values[$attribute->name] = $attribute->value;
-        }
+        $values = XmlParserUtils::parseAttributes($element);
 
         foreach ($element->childNodes as $child) {
             if (!$child instanceof \DOMElement) {
@@ -145,12 +142,12 @@ abstract class CustomFieldType extends XmlElement
 
             // translated
             if (\in_array($child->tagName, $translatableFields, true)) {
-                $values = self::mapTranslatedTag($child, $values);
+                $values = XmlParserUtils::mapTranslatedTag($child, $values);
 
                 continue;
             }
 
-            $values[self::kebabCaseToCamelCase($child->tagName)] = XmlReader::phpize($child->nodeValue);
+            $values[XmlParserUtils::kebabCaseToCamelCase($child->tagName)] = XmlReader::phpize($child->nodeValue);
         }
 
         return $values;

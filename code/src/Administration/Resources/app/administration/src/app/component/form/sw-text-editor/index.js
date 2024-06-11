@@ -6,8 +6,7 @@ const { Component } = Shopware;
 /**
  * @package admin
  *
- * @deprecated tag:v6.6.0 - Will be private
- * @public
+ * @private
  * @status ready
  * @example-type static
  * @description <p>A simple text editor which uses the browsers api.
@@ -96,6 +95,17 @@ Component.register('sw-text-editor', {
             type: String,
             required: false,
             default: null,
+        },
+
+        /**
+         * @description:
+         * If set to true, the component will show warning below the editor the content might be sanitized
+         * but does not call the sanitize API, the sanitization is done by the backend on saving
+         */
+        sanitizeInfoWarn: {
+            type: Boolean,
+            required: false,
+            default: false,
         },
 
         enableTransparentBackground: {
@@ -381,7 +391,7 @@ Component.register('sw-text-editor', {
         this.mountedComponent();
     },
 
-    destroyed() {
+    unmounted() {
         this.destroyedComponent();
     },
 
@@ -902,20 +912,12 @@ Component.register('sw-text-editor', {
         },
 
         emitContent() {
-            if (this.feature.isActive('VUE3')) {
-                this.$emit('update:modelValue', this.getContentValue());
-                return;
-            }
-            this.$emit('input', this.getContentValue());
+            this.$emit('update:value', this.getContentValue());
         },
 
         emitHtmlContent(value) {
             this.content = value;
-            if (this.feature.isActive('VUE3')) {
-                this.$emit('update:modelValue', value);
-            } else {
-                this.$emit('input', value);
-            }
+            this.$emit('update:value', value);
 
             this.isEmpty = this.emptyCheck(this.content);
             this.placeholderVisible = this.isEmpty;

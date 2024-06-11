@@ -4,6 +4,7 @@ namespace Shopware\Core\Migration\V6_4;
 
 use Doctrine\DBAL\Connection;
 use Shopware\Core\Content\Flow\Aggregate\FlowTemplate\FlowTemplateDefinition;
+use Shopware\Core\Content\Flow\Dispatching\Action\SendMailAction;
 use Shopware\Core\Content\MailTemplate\MailTemplateTypes;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Migration\MigrationStep;
@@ -14,7 +15,7 @@ use Shopware\Core\Framework\Uuid\Uuid;
  *
  * @codeCoverageIgnore
  */
-#[Package('business-ops')]
+#[Package('services-settings')]
 class Migration1675218708UpdateDeliverOrderedProductDownloadsFlowTemplate extends MigrationStep
 {
     public function getCreationTimestamp(): int
@@ -71,7 +72,7 @@ class Migration1675218708UpdateDeliverOrderedProductDownloadsFlowTemplate extend
         if ($mailTemplateId !== null) {
             $sequenceConfig[] = [
                 'id' => Uuid::randomHex(),
-                'actionName' => 'action.mail.send',
+                'actionName' => SendMailAction::ACTION_NAME,
                 'config' => [
                     'recipient' => [
                         'data' => [],

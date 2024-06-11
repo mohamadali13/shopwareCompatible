@@ -28,13 +28,14 @@ class AppException extends HttpException
     public const JWT_GENERATION_REQUIRES_CUSTOMER_LOGGED_IN = 'FRAMEWORK__APP_JWT_GENERATION_REQUIRES_CUSTOMER_LOGGED_IN';
     public const FEATURES_REQUIRE_APP_SECRET = 'FRAMEWORK__APP_FEATURES_REQUIRE_APP_SECRET';
     public const ACTION_BUTTON_PROCESS_EXCEPTION = 'FRAMEWORK__SYNC_ACTION_PROCESS_INTERRUPTED';
-
     public const INSTALLATION_FAILED = 'FRAMEWORK__APP_INSTALLATION_FAILED';
-
     public const XML_PARSE_ERROR = 'FRAMEWORK_APP__XML_PARSE_ERROR';
+    public const MISSING_REQUEST_PARAMETER_CODE = 'FRAMEWORK__APP_MISSING_REQUEST_PARAMETER';
+
+    public const CHECKOUT_GATEWAY_PAYLOAD_INVALID_CODE = 'FRAMEWORK__APP_CHECKOUT_GATEWAY_PAYLOAD_INVALID';
 
     /**
-     * @deprecated tag:v6.6.0 - Will be removed without a replacement - reason:remove-exception
+     * @internal will be removed once store extensions are installed over composer
      */
     public static function cannotDeleteManaged(string $pluginName): self
     {
@@ -206,5 +207,24 @@ class AppException extends HttpException
         }
 
         return new AppXmlParsingException($file, $message);
+    }
+
+    public static function missingRequestParameter(string $parameterName): self
+    {
+        return new self(
+            Response::HTTP_BAD_REQUEST,
+            self::MISSING_REQUEST_PARAMETER_CODE,
+            'Parameter "{{ parameterName }}" is missing.',
+            ['parameterName' => $parameterName]
+        );
+    }
+
+    public static function checkoutGatewayPayloadInvalid(): self
+    {
+        return new self(
+            Response::HTTP_BAD_REQUEST,
+            self::CHECKOUT_GATEWAY_PAYLOAD_INVALID_CODE,
+            'The checkout gateway payload is invalid'
+        );
     }
 }

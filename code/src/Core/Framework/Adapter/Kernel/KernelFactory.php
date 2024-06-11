@@ -17,6 +17,12 @@ use Symfony\Component\HttpKernel\HttpKernelInterface;
 use Symfony\Component\HttpKernel\KernelInterface;
 
 /**
+ * Shopware\Core\Framework\Adapter\Kernel\KernelFactory
+ *      Shopware\Core\Kernel
+ *          Shopware\Core\Framework\Adapter\Kernel\HttpCacheKernel (http caching)
+ *              Shopware\Core\Framework\Adapter\Kernel\HttpKernel (runs request transformer)
+ *                  Shopware\Storefront\Controller\Any
+ *
  * @final
  */
 #[Package('core')]
@@ -27,13 +33,6 @@ class KernelFactory
      */
     public static string $kernelClass = Kernel::class;
 
-    /**
-     * @deprecated tag:v6.6.0 - Will be removed
-     *
-     * @var bool
-     */
-    public static $active = false;
-
     public static function create(
         string $environment,
         bool $debug,
@@ -41,8 +40,6 @@ class KernelFactory
         ?KernelPluginLoader $pluginLoader = null,
         ?Connection $connection = null
     ): HttpKernelInterface {
-        self::$active = true;
-
         if (InstalledVersions::isInstalled('shopware/platform')) {
             $shopwareVersion = InstalledVersions::getVersion('shopware/platform')
                 . '@' . InstalledVersions::getReference('shopware/platform');
@@ -52,11 +49,12 @@ class KernelFactory
         }
 
         $middlewares = [];
-        if ($environment !== 'prod' && InstalledVersions::isInstalled('symfony/doctrine-bridge')) {
+        if ((\PHP_SAPI !== 'cli' || \in_array('--profile', $_SERVER['argv'] ?? [], true))
+            && $environment !== 'prod' && InstalledVersions::isInstalled('symfony/doctrine-bridge')) {
             $middlewares = [new ProfilingMiddleware()];
         }
 
-        $connection = $connection ?? MySQlFactory::create($middlewares);
+        $connection = $connection ?? MySQLFactory::create($middlewares);
 
         $pluginLoader = $pluginLoader ?? new DbalKernelPluginLoader($classLoader, null, $connection);
 

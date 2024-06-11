@@ -8,6 +8,8 @@ use Shopware\Core\Checkout\Shipping\Aggregate\ShippingMethodTranslation\Shipping
 use Shopware\Core\Content\Media\MediaEntity;
 use Shopware\Core\Content\Rule\RuleEntity;
 use Shopware\Core\Framework\App\Aggregate\AppShippingMethod\AppShippingMethodEntity;
+use Shopware\Core\Framework\DataAbstractionLayer\Contract\IdAware;
+use Shopware\Core\Framework\DataAbstractionLayer\Contract\RuleIdAware;
 use Shopware\Core\Framework\DataAbstractionLayer\Entity;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityCustomFieldsTrait;
 use Shopware\Core\Framework\DataAbstractionLayer\EntityIdTrait;
@@ -19,7 +21,7 @@ use Shopware\Core\System\Tag\TagCollection;
 use Shopware\Core\System\Tax\TaxEntity;
 
 #[Package('checkout')]
-class ShippingMethodEntity extends Entity
+class ShippingMethodEntity extends Entity implements IdAware, RuleIdAware
 {
     use EntityCustomFieldsTrait;
     use EntityIdTrait;
@@ -90,12 +92,7 @@ class ShippingMethodEntity extends Entity
      */
     protected $availabilityRule;
 
-    /**
-     * @deprecated tag:v6.6.0 - Type will be nullable. Also, it will be natively typed to enforce strict data type checking.
-     *
-     * @var string|null
-     */
-    protected $availabilityRuleId;
+    protected ?string $availabilityRuleId = null;
 
     /**
      * @var ShippingMethodPriceCollection
@@ -274,18 +271,9 @@ class ShippingMethodEntity extends Entity
         $this->availabilityRule = $availabilityRule;
     }
 
-    /**
-     * @deprecated tag:v6.6.0 - reason:return-type-change - Will also return null
-     * return type will be ?string in v6.6.0.0
-     */
-    public function getAvailabilityRuleId(): string
+    public function getAvailabilityRuleId(): ?string
     {
-        /**
-         * @deprecated tag:v6.6.0
-         * remove the null-check
-         * return $this->availabilityRuleId;
-         */
-        return $this->availabilityRuleId ?? '';
+        return $this->availabilityRuleId;
     }
 
     public function setAvailabilityRuleId(?string $availabilityRuleId): void

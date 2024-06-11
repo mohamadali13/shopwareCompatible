@@ -4,8 +4,7 @@ namespace Shopware\Core\Migration\V6_3;
 
 use Doctrine\DBAL\ArrayParameterType;
 use Doctrine\DBAL\Connection;
-use Shopware\Core\Content\MailTemplate\MailTemplateActions;
-use Shopware\Core\Content\MailTemplate\Subscriber\MailSendSubscriberConfig;
+use Shopware\Core\Content\Flow\Dispatching\Action\SendMailAction;
 use Shopware\Core\Defaults;
 use Shopware\Core\Framework\Log\Package;
 use Shopware\Core\Framework\Migration\MigrationStep;
@@ -29,7 +28,7 @@ class Migration1599822061MigrateOrderMails extends MigrationStep
         // migrate existing event_actions
         $events = $connection->fetchAllAssociative(
             'SELECT event_name, config FROM event_action WHERE `action_name` = :action',
-            ['action' => MailTemplateActions::MAIL_TEMPLATE_MAIL_SEND_ACTION]
+            ['action' => SendMailAction::ACTION_NAME]
         );
 
         $mapping = [];
@@ -82,19 +81,19 @@ class Migration1599822061MigrateOrderMails extends MigrationStep
     }
 
     /**
-     * @param list<string> $ids
+     * @param array<string> $ids
      *
      * @return array<string, array<string, string>>
      */
     private function fetchMails(Connection $connection, array $ids): array
     {
         $mails = $connection->createQueryBuilder()
-            ->select([
+            ->select(
                 'LOWER(HEX(mail_template.id)) as mail_template_id',
                 'NULL as sales_channel_id',
                 'mail_template_type.technical_name',
                 'LOWER(HEX(mail_template_type.id)) as mail_template_type_id',
-            ])
+            )
             ->from('mail_template')
             ->innerJoin(
                 'mail_template',
@@ -114,12 +113,12 @@ class Migration1599822061MigrateOrderMails extends MigrationStep
         }
 
         $mails = $connection->createQueryBuilder()
-            ->select([
+            ->select(
                 'LOWER(HEX(mail_template_sales_channel.mail_template_id)) as mail_template_id',
                 'mail_template_sales_channel.sales_channel_id',
                 'mail_template_type.technical_name',
                 'LOWER(HEX(mail_template_type.id)) as mail_template_type_id',
-            ])
+            )
             ->from('mail_template_sales_channel')
             ->innerJoin(
                 'mail_template_sales_channel',
@@ -144,7 +143,7 @@ class Migration1599822061MigrateOrderMails extends MigrationStep
     /**
      * @param list<string> $names
      *
-     * @return list<string>
+     * @return array<string>
      */
     private function getTypeIds(Connection $connection, array $names): array
     {
@@ -165,7 +164,7 @@ class Migration1599822061MigrateOrderMails extends MigrationStep
 
             $insert = [
                 'id' => $id,
-                'action_name' => MailSendSubscriberConfig::ACTION_NAME,
+                'action_name' => SendMailAction::ACTION_NAME,
                 'config' => json_encode([
                     'mail_template_id' => $mail['mail_template_id'],
 

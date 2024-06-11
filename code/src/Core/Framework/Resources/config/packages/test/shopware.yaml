@@ -113,3 +113,11 @@ shopware:
                         interval: '60 seconds'
                     -   limit: 10
                         interval: '90 seconds'
+    feature_toggle:
+        enable: true
+
+    dompdf:
+        options:
+            isRemoteEnabled: false
+            isFontSubsettingEnabled: false
+            defaultFont: 'DejaVu Sans'

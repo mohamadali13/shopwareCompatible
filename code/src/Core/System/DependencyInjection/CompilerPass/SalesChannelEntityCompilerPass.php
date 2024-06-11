@@ -93,7 +93,6 @@ class SalesChannelEntityCompilerPass implements CompilerPassInterface
             } catch (ServiceNotFoundException) {
                 $serviceClass = $service->getClass();
                 \assert(\is_string($serviceClass));
-
                 $repository = new Definition(
                     SalesChannelRepository::class,
                     [

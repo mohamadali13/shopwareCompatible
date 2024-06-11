@@ -8,7 +8,7 @@ import template from './sw-login-login.html.twig';
 const { Component, Mixin } = Shopware;
 
 /**
- * @deprecated tag:v6.6.0 - Will be private
+ * @private
  */
 Component.register('sw-login-login', {
     template,
@@ -103,7 +103,11 @@ Component.register('sw-login-login', {
 
             const firstRunWizard = Shopware.Context.app.firstRunWizard;
 
-            if (firstRunWizard && !this.$router.history.current.name.startsWith('sw.first.run.wizard.')) {
+            if (
+                firstRunWizard &&
+                !this.$router?.currentRoute?.value?.name?.startsWith('sw.first.run.wizard') &&
+                this.$router.hasRoute('sw.first.run.wizard.index')
+            ) {
                 this.$router.push({ name: 'sw.first.run.wizard.index' });
                 return;
             }

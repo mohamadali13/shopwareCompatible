@@ -13,6 +13,7 @@ use Shopware\Core\Content\Media\Aggregate\MediaThumbnailSize\MediaThumbnailSizeC
 use Shopware\Core\Content\Media\Aggregate\MediaThumbnailSize\MediaThumbnailSizeEntity;
 use Shopware\Core\Content\Media\Core\Event\UpdateThumbnailPathEvent;
 use Shopware\Core\Content\Media\DataAbstractionLayer\MediaIndexingMessage;
+use Shopware\Core\Content\Media\Event\MediaPathChangedEvent;
 use Shopware\Core\Content\Media\MediaCollection;
 use Shopware\Core\Content\Media\MediaEntity;
 use Shopware\Core\Content\Media\MediaException;
@@ -238,6 +239,8 @@ class ThumbnailService
         );
 
         try {
+            $event = new MediaPathChangedEvent($context);
+
             foreach ($sizes as $size) {
                 $id = $mapped[$size->getId()];
 
@@ -256,7 +259,16 @@ class ThumbnailService
                 }
 
                 imagedestroy($thumbnail);
+
+                $event->thumbnail(
+                    mediaId: $media->getId(),
+                    thumbnailId: $id,
+                    path: $path,
+                );
             }
+
+            $this->dispatcher->dispatch($event);
+
             imagedestroy($image);
         } finally {
             return $records;
@@ -295,7 +307,7 @@ class ThumbnailService
 
         if (\function_exists('exif_read_data')) {
             /** @var resource $stream */
-            $stream = fopen('php://memory', 'r+b');
+            $stream = fopen('php://memory', 'r+');
 
             try {
                 // use in-memory stream to read the EXIF-metadata,
@@ -421,6 +433,14 @@ class ThumbnailService
                 imagewebp($thumbnail, null, $quality);
 
                 break;
+            case 'image/avif':
+                if (!\function_exists('imageavif')) {
+                    throw MediaException::thumbnailCouldNotBeSaved($url);
+                }
+
+                imageavif($thumbnail, null, $quality);
+
+                break;
         }
         $imageFile = ob_get_contents();
         ob_end_clean();
@@ -441,7 +461,6 @@ class ThumbnailService
         if (!$this->thumbnailsAreGeneratable($media)) {
             return false;
         }
-
         $this->ensureConfigIsLoaded($media, $context);
 
         if ($media->getMediaFolder() === null || $media->getMediaFolder()->getConfiguration() === null) {
